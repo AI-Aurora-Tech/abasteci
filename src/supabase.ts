@@ -7,19 +7,43 @@ import type {
   Vehicle,
 } from './types'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+// Remove espaços, quebras de linha e BOM que às vezes entram ao salvar o .env
+// (principalmente no Windows). Isso evita erros silenciosos de configuração.
+function clean(v?: string): string {
+  return (v ?? '').replace(/^﻿/, '').trim()
+}
 
-/** Indica se as variáveis de ambiente do Supabase foram configuradas. */
+const url = clean(import.meta.env.VITE_SUPABASE_URL as string | undefined)
+const anonKey = clean(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
+
+/** Indica se as variáveis de ambiente do Supabase foram preenchidas. */
 export const isConfigured = Boolean(url && anonKey)
 
-// Cliente único do app. Se não configurado, expomos null e a UI mostra
-// a tela de configuração pendente.
-export const supabase: SupabaseClient | null = isConfigured
-  ? createClient(url!, anonKey!, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    })
-  : null
+/**
+ * Mensagem de erro de configuração (ou null se estiver tudo certo).
+ * Detecta credenciais malformadas ANTES de o navegador tentar montar os
+ * cabeçalhos HTTP — o que geraria um erro críptico de "ByteString".
+ */
+export const configError: string | null = (() => {
+  if (!isConfigured) return null
+  // A anon key é um JWT (base64url): só letras, números, '-', '_' e '.'.
+  if (!/^[A-Za-z0-9_.-]+$/.test(anonKey)) {
+    return 'A VITE_SUPABASE_ANON_KEY contém caracteres inválidos. Provavelmente o arquivo .env foi salvo com formatação incorreta (aspas, quebra de linha no meio da chave ou caractere especial). Recrie o .env com a anon key em UMA única linha, sem espaços.'
+  }
+  if (!/^https:\/\/[a-z0-9.-]+\.supabase\.co\/?$/i.test(url)) {
+    return 'A VITE_SUPABASE_URL parece inválida. Use o formato https://SEU-PROJETO.supabase.co (Project Settings > API).'
+  }
+  return null
+})()
+
+// Cliente único do app. Se não configurado/ inválido, expomos null e a UI
+// mostra a tela de configuração pendente.
+export const supabase: SupabaseClient | null =
+  isConfigured && !configError
+    ? createClient(url, anonKey, {
+        auth: { persistSession: true, autoRefreshToken: true },
+      })
+    : null
 
 function client(): SupabaseClient {
   if (!supabase) throw new Error('Supabase não configurado')
