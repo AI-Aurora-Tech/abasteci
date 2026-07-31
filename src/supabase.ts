@@ -1,0 +1,245 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type {
+  Expense,
+  Fueling,
+  Maintenance,
+  Reminder,
+  Vehicle,
+} from './types'
+
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+/** Indica se as variáveis de ambiente do Supabase foram configuradas. */
+export const isConfigured = Boolean(url && anonKey)
+
+// Cliente único do app. Se não configurado, expomos null e a UI mostra
+// a tela de configuração pendente.
+export const supabase: SupabaseClient | null = isConfigured
+  ? createClient(url!, anonKey!, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    })
+  : null
+
+function client(): SupabaseClient {
+  if (!supabase) throw new Error('Supabase não configurado')
+  return supabase
+}
+
+// ---------- Mapeadores DB (snake_case) <-> App (camelCase) ----------
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const toVehicle = (r: any): Vehicle => ({
+  id: r.id,
+  name: r.name,
+  plate: r.plate ?? '',
+  make: r.make ?? '',
+  model: r.model ?? '',
+  year: r.year ?? null,
+  fuelType: r.fuel_type,
+  odometer: Number(r.odometer) || 0,
+  color: r.color,
+  createdAt: r.created_at,
+})
+
+const toFueling = (r: any): Fueling => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  date: r.date,
+  odometer: Number(r.odometer) || 0,
+  fuelType: r.fuel_type,
+  liters: Number(r.liters) || 0,
+  pricePerLiter: Number(r.price_per_liter) || 0,
+  total: Number(r.total) || 0,
+  fullTank: r.full_tank,
+  station: r.station ?? undefined,
+  note: r.note ?? undefined,
+})
+
+const toExpense = (r: any): Expense => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  date: r.date,
+  category: r.category,
+  description: r.description ?? '',
+  odometer: r.odometer != null ? Number(r.odometer) : undefined,
+  value: Number(r.value) || 0,
+})
+
+const toMaintenance = (r: any): Maintenance => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  date: r.date,
+  type: r.type,
+  service: r.service ?? '',
+  odometer: Number(r.odometer) || 0,
+  value: Number(r.value) || 0,
+  workshop: r.workshop ?? undefined,
+  note: r.note ?? undefined,
+})
+
+const toReminder = (r: any): Reminder => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  title: r.title,
+  basis: r.basis,
+  dueDate: r.due_date ?? undefined,
+  dueOdometer: r.due_odometer != null ? Number(r.due_odometer) : undefined,
+  done: r.done,
+  note: r.note ?? undefined,
+})
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ---------- Leitura ----------
+
+export async function fetchAll() {
+  const c = client()
+  const [v, f, e, m, r] = await Promise.all([
+    c.from('vehicles').select('*').order('created_at', { ascending: true }),
+    c.from('fuelings').select('*'),
+    c.from('expenses').select('*'),
+    c.from('maintenances').select('*'),
+    c.from('reminders').select('*'),
+  ])
+  const err = v.error || f.error || e.error || m.error || r.error
+  if (err) throw err
+  return {
+    vehicles: (v.data ?? []).map(toVehicle),
+    fuelings: (f.data ?? []).map(toFueling),
+    expenses: (e.data ?? []).map(toExpense),
+    maintenances: (m.data ?? []).map(toMaintenance),
+    reminders: (r.data ?? []).map(toReminder),
+  }
+}
+
+// ---------- Escrita (o user_id é preenchido pelo default auth.uid() no banco) ----------
+
+export async function insertVehicle(v: Omit<Vehicle, 'id' | 'createdAt'>): Promise<Vehicle> {
+  const { data, error } = await client()
+    .from('vehicles')
+    .insert({
+      name: v.name,
+      plate: v.plate,
+      make: v.make,
+      model: v.model,
+      year: v.year,
+      fuel_type: v.fuelType,
+      odometer: v.odometer,
+      color: v.color,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toVehicle(data)
+}
+
+export async function updateVehicleRow(id: string, patch: Partial<Vehicle>): Promise<Vehicle> {
+  const row: Record<string, unknown> = {}
+  if (patch.name !== undefined) row.name = patch.name
+  if (patch.plate !== undefined) row.plate = patch.plate
+  if (patch.make !== undefined) row.make = patch.make
+  if (patch.model !== undefined) row.model = patch.model
+  if (patch.year !== undefined) row.year = patch.year
+  if (patch.fuelType !== undefined) row.fuel_type = patch.fuelType
+  if (patch.odometer !== undefined) row.odometer = patch.odometer
+  if (patch.color !== undefined) row.color = patch.color
+  const { data, error } = await client().from('vehicles').update(row).eq('id', id).select().single()
+  if (error) throw error
+  return toVehicle(data)
+}
+
+export async function insertFueling(f: Omit<Fueling, 'id'>): Promise<Fueling> {
+  const { data, error } = await client()
+    .from('fuelings')
+    .insert({
+      vehicle_id: f.vehicleId,
+      date: f.date,
+      odometer: f.odometer,
+      fuel_type: f.fuelType,
+      liters: f.liters,
+      price_per_liter: f.pricePerLiter,
+      total: f.total,
+      full_tank: f.fullTank,
+      station: f.station ?? null,
+      note: f.note ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toFueling(data)
+}
+
+export async function insertExpense(e: Omit<Expense, 'id'>): Promise<Expense> {
+  const { data, error } = await client()
+    .from('expenses')
+    .insert({
+      vehicle_id: e.vehicleId,
+      date: e.date,
+      category: e.category,
+      description: e.description,
+      odometer: e.odometer ?? null,
+      value: e.value,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toExpense(data)
+}
+
+export async function insertMaintenance(m: Omit<Maintenance, 'id'>): Promise<Maintenance> {
+  const { data, error } = await client()
+    .from('maintenances')
+    .insert({
+      vehicle_id: m.vehicleId,
+      date: m.date,
+      type: m.type,
+      service: m.service,
+      odometer: m.odometer,
+      value: m.value,
+      workshop: m.workshop ?? null,
+      note: m.note ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toMaintenance(data)
+}
+
+export async function insertReminder(r: Omit<Reminder, 'id'>): Promise<Reminder> {
+  const { data, error } = await client()
+    .from('reminders')
+    .insert({
+      vehicle_id: r.vehicleId,
+      title: r.title,
+      basis: r.basis,
+      due_date: r.dueDate ?? null,
+      due_odometer: r.dueOdometer ?? null,
+      done: r.done,
+      note: r.note ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toReminder(data)
+}
+
+export async function setReminderDone(id: string, done: boolean): Promise<void> {
+  const { error } = await client().from('reminders').update({ done }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteRow(
+  table: 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders',
+  id: string,
+): Promise<void> {
+  const { error } = await client().from(table).delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteAllForUser(): Promise<void> {
+  // Apagar os veículos remove tudo em cascata (ON DELETE CASCADE).
+  const { error } = await client().from('vehicles').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  if (error) throw error
+}
