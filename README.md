@@ -15,6 +15,9 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
   gráfico de gasto mensal, próximos lembretes e atividade recente.
 - **Abastecimentos** — registro com cálculo automático de litros × preço = total, controle
   de tanque cheio/parcial e cálculo de consumo entre abastecimentos completos.
+- **Posto por GPS** — no formulário de abastecimento, o botão 📍 usa a localização do celular
+  para encontrar o posto de combustível mais próximo (dados abertos do OpenStreetMap) e
+  preencher o campo automaticamente, guardando as coordenadas (com link "ver no mapa").
 - **Despesas** — IPVA, seguro, multas, pedágios, estacionamento, lavagem, financiamento e outros.
 - **Manutenções** — preventivas e corretivas, com serviço, oficina e hodômetro.
 - **Lembretes** — por data, por quilometragem ou ambos, com destaque para vencidos e próximos.
@@ -49,6 +52,13 @@ tabelas já existiam com uma estrutura diferente e o `create table if not exists
 atualizou. Rode **uma vez** o script [`supabase/reset_and_setup.sql`](supabase/reset_and_setup.sql)
 no SQL Editor — ele apaga as 5 tabelas e recria com o schema correto (use apenas na fase de
 setup, pois apaga os dados).
+
+### Já tinha o banco criado antes?
+
+Se você criou as tabelas em uma versão anterior, rode a migração incremental
+[`supabase/migrations/0002_fueling_location.sql`](supabase/migrations/0002_fueling_location.sql)
+no SQL Editor para adicionar as colunas de localização (`latitude`/`longitude`) usadas
+pelo recurso de "posto por GPS".
 
 ## 🚀 Como rodar
 

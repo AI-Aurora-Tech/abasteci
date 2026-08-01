@@ -633,6 +633,17 @@ button {
   flex: 1;
 }
 
+.geo-msg {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.geo-msg a {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
 .computed {
   background: var(--primary-soft);
   color: var(--primary-dark);

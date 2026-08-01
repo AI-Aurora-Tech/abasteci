@@ -34,6 +34,8 @@ create table if not exists public.fuelings (
   total           numeric not null default 0,
   full_tank       boolean not null default true,
   station         text,
+  latitude        numeric,
+  longitude       numeric,
   note            text
 );
 

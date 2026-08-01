@@ -33,6 +33,8 @@ export interface Fueling {
   total: number
   fullTank: boolean
   station?: string
+  latitude?: number
+  longitude?: number
   note?: string
 }
 

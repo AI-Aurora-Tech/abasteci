@@ -78,6 +78,8 @@ const toFueling = (r: any): Fueling => ({
   total: Number(r.total) || 0,
   fullTank: r.full_tank,
   station: r.station ?? undefined,
+  latitude: r.latitude != null ? Number(r.latitude) : undefined,
+  longitude: r.longitude != null ? Number(r.longitude) : undefined,
   note: r.note ?? undefined,
 })
 
@@ -187,6 +189,8 @@ export async function insertFueling(f: Omit<Fueling, 'id'>): Promise<Fueling> {
       total: f.total,
       full_tank: f.fullTank,
       station: f.station ?? null,
+      latitude: f.latitude ?? null,
+      longitude: f.longitude ?? null,
       note: f.note ?? null,
     })
     .select()
@@ -269,6 +273,8 @@ export async function updateFuelingRow(id: string, f: Omit<Fueling, 'id'>): Prom
       total: f.total,
       full_tank: f.fullTank,
       station: f.station ?? null,
+      latitude: f.latitude ?? null,
+      longitude: f.longitude ?? null,
       note: f.note ?? null,
     })
     .eq('id', id)

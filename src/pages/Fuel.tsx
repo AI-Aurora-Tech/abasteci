@@ -4,6 +4,7 @@ import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
 import type { Fueling, FuelType } from '../types'
 import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
+import { locateStation, mapsLink } from '../geo'
 
 const FUEL_TYPES: FuelType[] = [
   'Gasolina',
@@ -82,7 +83,12 @@ export default function Fuel() {
               key={f.id}
               icon="⛽"
               title={formatDate(f.date)}
-              subtitle={f.station ? `${f.fuelType} · ${f.station}` : f.fuelType}
+              subtitle={
+                <>
+                  {f.station ? `${f.fuelType} · ${f.station}` : f.fuelType}
+                  {f.latitude != null && f.longitude != null && ' 📍'}
+                </>
+              }
               meta={[
                 `${f.odometer.toLocaleString('pt-BR')} km`,
                 `${num(f.liters)} L`,
@@ -113,7 +119,32 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
   const [total, setTotal] = useState(editing ? String(editing.total) : '')
   const [fullTank, setFullTank] = useState(editing ? editing.fullTank : true)
   const [station, setStation] = useState(editing?.station ?? '')
+  const [latitude, setLatitude] = useState<number | undefined>(editing?.latitude)
+  const [longitude, setLongitude] = useState<number | undefined>(editing?.longitude)
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [geoMsg, setGeoMsg] = useState('')
   const [lastEdited, setLastEdited] = useState<'liters' | 'price' | 'total' | null>(null)
+
+  async function useLocation() {
+    setGeoStatus('loading')
+    setGeoMsg('Obtendo localização…')
+    try {
+      const result = await locateStation()
+      setLatitude(result.coords.lat)
+      setLongitude(result.coords.lng)
+      if (result.name) {
+        setStation(result.name)
+        const dist = result.distance != null ? ` (a ${Math.round(result.distance)} m)` : ''
+        setGeoMsg(`Posto encontrado: ${result.name}${dist}`)
+      } else {
+        setGeoMsg('Localização registrada. Não achei o nome do posto — preencha manualmente.')
+      }
+      setGeoStatus('ok')
+    } catch (err) {
+      setGeoStatus('error')
+      setGeoMsg(err instanceof Error ? err.message : 'Falha ao obter a localização.')
+    }
+  }
 
   const L = parseFloat(liters.replace(',', '.')) || 0
   const P = parseFloat(pricePerLiter.replace(',', '.')) || 0
@@ -144,6 +175,8 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       total: Number(finalTotal.toFixed(2)),
       fullTank,
       station: station.trim() || undefined,
+      latitude,
+      longitude,
     }
     if (editing) void updateFueling(editing.id, payload)
     else void addFueling(payload)
@@ -225,7 +258,39 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
 
         <div className="field">
           <label>Posto (opcional)</label>
-          <input value={station} onChange={(e) => setStation(e.target.value)} placeholder="Ex.: Posto Ipiranga" />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ flex: 1 }}
+              value={station}
+              onChange={(e) => setStation(e.target.value)}
+              placeholder="Ex.: Posto Ipiranga"
+            />
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => void useLocation()}
+              disabled={geoStatus === 'loading'}
+              title="Usar localização do celular"
+            >
+              {geoStatus === 'loading' ? '…' : '📍'}
+            </button>
+          </div>
+          {geoMsg && (
+            <div
+              className="geo-msg"
+              style={{ color: geoStatus === 'error' ? 'var(--danger)' : 'var(--text-dim)' }}
+            >
+              {geoMsg}
+              {latitude != null && longitude != null && (
+                <>
+                  {' · '}
+                  <a href={mapsLink(latitude, longitude)} target="_blank" rel="noopener noreferrer">
+                    ver no mapa
+                  </a>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="field check-row">
