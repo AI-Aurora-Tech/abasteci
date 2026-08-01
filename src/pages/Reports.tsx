@@ -77,19 +77,15 @@ export default function Reports() {
 
   return (
     <>
-      <PageHeader
-        title="Relatórios"
-        subtitle={`${vehicle.make} ${vehicle.model}`}
-        action={
-          <div className="pill-tabs">
-            {([6, 12, 0] as Range[]).map((rg) => (
-              <button key={rg} className={range === rg ? 'active' : ''} onClick={() => setRange(rg)}>
-                {rg === 0 ? 'Tudo' : `${rg} meses`}
-              </button>
-            ))}
-          </div>
-        }
-      />
+      <PageHeader title="Relatórios" subtitle={`${vehicle.make} ${vehicle.model}`} />
+
+      <div className="pill-tabs" style={{ marginBottom: 16 }}>
+        {([6, 12, 0] as Range[]).map((rg) => (
+          <button key={rg} className={range === rg ? 'active' : ''} onClick={() => setRange(rg)}>
+            {rg === 0 ? 'Tudo' : `${rg} meses`}
+          </button>
+        ))}
+      </div>
 
       {r.count === 0 ? (
         <EmptyState icon="📈" title="Sem dados para relatórios" hint="Adicione abastecimentos e despesas para gerar gráficos." />

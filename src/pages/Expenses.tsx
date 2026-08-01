@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader } from '../components/ui'
+import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
 import type { ExpenseCategory } from '../types'
 import { brl, currentOdometer, formatDate, todayISO } from '../utils'
 
@@ -56,7 +56,7 @@ export default function Expenses() {
         title="Despesas"
         subtitle={`Total registrado: ${brl(total)}`}
         action={
-          <button className="btn primary" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={() => setOpen(true)}>
             + Despesa
           </button>
         }
@@ -70,37 +70,18 @@ export default function Expenses() {
           action={<button className="btn primary" onClick={() => setOpen(true)}>Registrar despesa</button>}
         />
       ) : (
-        <div className="card table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Categoria</th>
-                <th>Descrição</th>
-                <th className="num">Valor</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((e) => (
-                <tr key={e.id}>
-                  <td>{formatDate(e.date)}</td>
-                  <td>
-                    <span className="badge blue">
-                      {CATEGORY_ICON[e.category]} {e.category}
-                    </span>
-                  </td>
-                  <td className="muted">{e.description}</td>
-                  <td className="num">{brl(e.value)}</td>
-                  <td>
-                    <button className="btn danger" onClick={() => removeExpense(e.id)} title="Excluir">
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card">
+          {expenses.map((e) => (
+            <RecordCard
+              key={e.id}
+              icon={CATEGORY_ICON[e.category]}
+              title={e.description || e.category}
+              subtitle={e.category}
+              meta={[formatDate(e.date)]}
+              amount={brl(e.value)}
+              onDelete={() => removeExpense(e.id)}
+            />
+          ))}
         </div>
       )}
 

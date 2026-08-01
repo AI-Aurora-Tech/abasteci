@@ -24,6 +24,28 @@ export function Modal({
   )
 }
 
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string
+  subtitle?: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="page-head">
+      <div className="row">
+        <div>
+          <h1 className="page-title">{title}</h1>
+          {subtitle && <p className="page-sub">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+    </div>
+  )
+}
+
 export function Kpi({
   label,
   value,
@@ -47,6 +69,50 @@ export function Kpi({
   )
 }
 
+export function RecordCard({
+  icon,
+  title,
+  subtitle,
+  meta,
+  amount,
+  badge,
+  onDelete,
+}: {
+  icon?: ReactNode
+  title: ReactNode
+  subtitle?: ReactNode
+  meta?: ReactNode[]
+  amount?: ReactNode
+  badge?: ReactNode
+  onDelete?: () => void
+}) {
+  return (
+    <div className="rec">
+      {icon != null && <div className="rec-icon">{icon}</div>}
+      <div className="rec-main">
+        <div className="rec-title">{title}</div>
+        {subtitle && <div className="rec-sub">{subtitle}</div>}
+        {meta && meta.length > 0 && (
+          <div className="rec-meta">
+            {meta.map((m, i) => (
+              <span key={i}>{m}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="rec-side">
+        {badge}
+        {amount != null && <div className="rec-amount">{amount}</div>}
+        {onDelete && (
+          <button className="rec-del" onClick={onDelete} aria-label="Excluir">
+            🗑
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function EmptyState({
   icon,
   title,
@@ -62,7 +128,7 @@ export function EmptyState({
     <div className="card empty">
       <div className="big">{icon}</div>
       <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>{title}</div>
-      {hint && <p style={{ maxWidth: 380, margin: '8px auto 16px' }}>{hint}</p>}
+      {hint && <p style={{ maxWidth: 340, margin: '8px auto 16px' }}>{hint}</p>}
       {action}
     </div>
   )
@@ -84,26 +150,6 @@ export function BarChart({ data, format }: { data: BarDatum[]; format: (v: numbe
           <div className="bar-lbl">{d.label}</div>
         </div>
       ))}
-    </div>
-  )
-}
-
-export function PageHeader({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string
-  subtitle?: string
-  action?: ReactNode
-}) {
-  return (
-    <div className="topbar">
-      <div>
-        <h1 className="page-title">{title}</h1>
-        {subtitle && <p className="page-sub">{subtitle}</p>}
-      </div>
-      {action}
     </div>
   )
 }

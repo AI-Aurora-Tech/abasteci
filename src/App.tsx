@@ -11,6 +11,7 @@ import Reminders from './pages/Reminders'
 import Reports from './pages/Reports'
 import Vehicles from './pages/Vehicles'
 import Settings from './pages/Settings'
+import Mais from './pages/Mais'
 
 function Splash({ children }: { children: React.ReactNode }) {
   return (
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="lembretes" element={<Reminders />} />
         <Route path="relatorios" element={<Reports />} />
         <Route path="veiculos" element={<Vehicles />} />
+        <Route path="mais" element={<Mais />} />
         <Route path="config" element={<Settings />} />
       </Route>
     </Routes>

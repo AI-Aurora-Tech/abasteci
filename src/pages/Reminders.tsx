@@ -42,7 +42,7 @@ export default function Reminders() {
         title="Lembretes"
         subtitle="Avisos por data ou quilometragem"
         action={
-          <button className="btn primary" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={() => setOpen(true)}>
             + Lembrete
           </button>
         }

@@ -42,6 +42,14 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
 
    > A `anon key` é pública/client-side — a segurança vem do RLS no banco.
 
+### Deu erro de coluna? (PGRST204)
+
+Se ao salvar aparecer algo como *"Could not find the 'fuel_type' column"*, é porque as
+tabelas já existiam com uma estrutura diferente e o `create table if not exists` não as
+atualizou. Rode **uma vez** o script [`supabase/reset_and_setup.sql`](supabase/reset_and_setup.sql)
+no SQL Editor — ele apaga as 5 tabelas e recria com o schema correto (use apenas na fase de
+setup, pois apaga os dados).
+
 ## 🚀 Como rodar
 
 Requer Node.js 18+.

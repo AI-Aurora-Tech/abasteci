@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader } from '../components/ui'
+import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
 import type { FuelType } from '../types'
 import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
 
@@ -43,7 +43,7 @@ export default function Fuel() {
         title="Abastecimentos"
         subtitle={`${vehicle.name} · ${fuelings.length} registro(s)`}
         action={
-          <button className="btn primary" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={() => setOpen(true)}>
             + Abastecer
           </button>
         }
@@ -61,44 +61,23 @@ export default function Fuel() {
           }
         />
       ) : (
-        <div className="card table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Combustível</th>
-                <th className="num">Hodômetro</th>
-                <th className="num">Litros</th>
-                <th className="num">R$/L</th>
-                <th className="num">Total</th>
-                <th>Tanque</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {fuelings.map((f) => (
-                <tr key={f.id}>
-                  <td>{formatDate(f.date)}</td>
-                  <td>
-                    {f.fuelType}
-                    {f.station && <div className="muted" style={{ fontSize: 12 }}>{f.station}</div>}
-                  </td>
-                  <td className="num">{f.odometer.toLocaleString('pt-BR')}</td>
-                  <td className="num">{num(f.liters)}</td>
-                  <td className="num">{num(f.pricePerLiter, 3)}</td>
-                  <td className="num">{brl(f.total)}</td>
-                  <td>
-                    <span className={'badge ' + (f.fullTank ? 'green' : '')}>{f.fullTank ? 'Cheio' : 'Parcial'}</span>
-                  </td>
-                  <td>
-                    <button className="btn danger" onClick={() => removeFueling(f.id)} title="Excluir">
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card">
+          {fuelings.map((f) => (
+            <RecordCard
+              key={f.id}
+              icon="⛽"
+              title={formatDate(f.date)}
+              subtitle={f.station ? `${f.fuelType} · ${f.station}` : f.fuelType}
+              meta={[
+                `${f.odometer.toLocaleString('pt-BR')} km`,
+                `${num(f.liters)} L`,
+                `${num(f.pricePerLiter, 3)} R$/L`,
+              ]}
+              amount={brl(f.total)}
+              badge={<span className={'badge ' + (f.fullTank ? 'green' : '')}>{f.fullTank ? 'Cheio' : 'Parcial'}</span>}
+              onDelete={() => removeFueling(f.id)}
+            />
+          ))}
         </div>
       )}
 

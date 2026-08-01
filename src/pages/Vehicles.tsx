@@ -28,7 +28,7 @@ export default function Vehicles() {
         subtitle={`${data.vehicles.length} veículo(s) cadastrado(s)`}
         action={
           <button
-            className="btn primary"
+            className="btn primary sm"
             onClick={() => {
               setEditing(null)
               setOpen(true)

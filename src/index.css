@@ -12,7 +12,10 @@
   --danger: #dc2626;
   --warning: #d97706;
   --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --radius: 14px;
+  --radius: 16px;
+  --appbar-h: 56px;
+  --tabbar-h: 64px;
+  --maxw: 480px;
   color-scheme: light dark;
 }
 
@@ -31,6 +34,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -42,7 +46,8 @@ body,
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
+  /* área "fora do celular" no desktop */
+  background: var(--surface-2);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
@@ -57,112 +62,71 @@ button {
   cursor: pointer;
 }
 
-/* ---------- Layout ---------- */
+/* ---------- Shell mobile (coluna centralizada) ---------- */
 
 .app {
-  display: grid;
-  grid-template-columns: 248px 1fr;
-  min-height: 100%;
-}
-
-.sidebar {
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  position: relative;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+}
+
+@media (min-width: 520px) {
+  .app {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 0 40px rgba(15, 23, 42, 0.08);
+  }
+}
+
+/* Barra superior */
+.appbar {
   position: sticky;
   top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  font-size: 20px;
-  padding: 6px 10px 14px;
-  letter-spacing: -0.02em;
-}
-
-.brand .dot {
-  color: var(--primary);
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  color: var(--text-dim);
-  font-weight: 600;
-  font-size: 14px;
-  transition: background 0.12s, color 0.12s;
-}
-
-.nav-link:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.nav-link.active {
-  background: var(--primary-soft);
-  color: var(--primary-dark);
-}
-
-.nav-link .ico {
-  width: 20px;
-  text-align: center;
-  font-size: 17px;
-}
-
-.sidebar-spacer {
-  flex: 1;
-}
-
-.main {
-  padding: 26px 30px 60px;
-  max-width: 1180px;
-  width: 100%;
-}
-
-.topbar {
+  z-index: 30;
+  height: var(--appbar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 22px;
-  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
-.page-title {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.page-sub {
-  color: var(--text-dim);
-  font-size: 14px;
-  margin: 2px 0 0;
-}
-
-/* ---------- Vehicle selector ---------- */
-
-.vehicle-select {
+.appbar .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--surface);
+  gap: 8px;
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.appbar .brand .dot {
+  color: var(--primary);
+}
+
+/* Seletor de veículo (pílula) */
+.vehicle-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 12px;
-  box-shadow: var(--shadow);
+  border-radius: 999px;
+  padding: 6px 12px;
+  max-width: 60%;
+}
+
+.vehicle-select .swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .vehicle-select select {
@@ -170,15 +134,80 @@ button {
   background: transparent;
   color: var(--text);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
+  max-width: 100%;
+  text-overflow: ellipsis;
 }
 
-.swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
+/* Conteúdo rolável */
+.content {
+  flex: 1;
+  padding: 16px 16px calc(var(--tabbar-h) + 20px);
+}
+
+/* Barra de abas inferior */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--maxw);
+  height: var(--tabbar-h);
+  z-index: 40;
+  display: flex;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.tab .ico {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.tab.active {
+  color: var(--primary);
+}
+
+/* ---------- Cabeçalho de página ---------- */
+
+.page-head {
+  margin-bottom: 16px;
+}
+
+.page-head .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.page-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: 2px 0 0;
 }
 
 /* ---------- Cards ---------- */
@@ -188,64 +217,65 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 18px;
+  padding: 16px;
 }
 
 .grid {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .kpi-grid {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: 1fr 1fr;
 }
 
 .kpi-label {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .kpi-value {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .kpi-hint {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: 11px;
   margin-top: 4px;
 }
 
 .section-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  margin: 28px 0 12px;
+  margin: 22px 0 10px;
 }
 
-/* ---------- Buttons ---------- */
+/* ---------- Botões ---------- */
 
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  padding: 9px 14px;
-  border-radius: 10px;
+  padding: 11px 16px;
+  border-radius: 12px;
   font-weight: 700;
   font-size: 14px;
   transition: filter 0.12s, background 0.12s;
 }
 
-.btn:hover {
-  background: var(--surface-2);
+.btn:active {
+  filter: brightness(0.96);
 }
 
 .btn.primary {
@@ -254,20 +284,10 @@ button {
   color: #fff;
 }
 
-.btn.primary:hover {
-  filter: brightness(1.06);
-  background: var(--primary);
-}
-
 .btn.danger {
   color: var(--danger);
   border-color: transparent;
   background: transparent;
-  padding: 6px 8px;
-}
-
-.btn.danger:hover {
-  background: rgba(220, 38, 38, 0.1);
 }
 
 .btn.ghost {
@@ -275,45 +295,134 @@ button {
   background: transparent;
 }
 
-/* ---------- Table ---------- */
+.btn.sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
 
-.table {
+.btn.block {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
 }
 
-.table th {
-  text-align: left;
-  color: var(--text-dim);
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 10px 12px;
+/* Botão flutuante de adicionar (FAB) — some não é usado por padrão, mas disponível */
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* ---------- Lista de registros (mobile) ---------- */
+
+.rec {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 4px;
   border-bottom: 1px solid var(--border);
 }
 
-.table td {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.table tr:last-child td {
+.rec:last-child {
   border-bottom: none;
 }
 
-.table tr:hover td {
+.rec-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  flex-shrink: 0;
 }
 
-.num {
-  text-align: right;
+.rec-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.rec-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.rec-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.rec-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rec-amount {
+  font-weight: 800;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.table-wrap {
-  overflow-x: auto;
+.rec-del {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  font-size: 16px;
+  padding: 2px 4px;
+}
+
+/* ---------- Menu "Mais" ---------- */
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 6px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item .ico {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+}
+
+.menu-item .chev {
+  margin-left: auto;
+  color: var(--text-dim);
 }
 
 /* ---------- Badges ---------- */
@@ -323,11 +432,12 @@ button {
   align-items: center;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   background: var(--surface-2);
   color: var(--text-dim);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .badge.green {
@@ -354,45 +464,103 @@ button {
   border-color: transparent;
 }
 
-/* ---------- Forms / Modal ---------- */
+/* ---------- Tabelas (uso pontual, ex.: relatório) ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Formulário / Modal (folha inferior no mobile) ---------- */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.5);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  padding: 20px;
-  z-index: 50;
+  z-index: 60;
 }
 
 .modal {
   background: var(--surface);
-  border-radius: 16px;
-  border: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
   width: 100%;
-  max-width: 520px;
-  max-height: 90vh;
+  max-width: var(--maxw);
+  max-height: 92dvh;
   overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.25);
+  animation: sheet-up 0.22s ease;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0.4;
+  }
+}
+
+@media (min-width: 520px) {
+  .modal-backdrop {
+    align-items: center;
+  }
+  .modal {
+    border-radius: 20px;
+  }
 }
 
 .modal-head {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border);
 }
 
 .modal-head h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 18px;
 }
 
 .field {
@@ -411,12 +579,12 @@ button {
 .field select,
 .field textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 13px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px; /* >=16px evita zoom automático no iOS */
   font-family: inherit;
   outline: none;
 }
@@ -436,50 +604,55 @@ button {
 .check-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .check-row input {
-  width: auto;
+  width: 22px;
+  height: 22px;
 }
 
 .modal-foot {
   display: flex;
-  justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
+}
+
+.modal-foot .btn {
+  flex: 1;
 }
 
 .computed {
   background: var(--primary-soft);
   color: var(--primary-dark);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 12px 14px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
   margin-bottom: 14px;
+  text-align: center;
 }
 
-/* ---------- Empty state ---------- */
+/* ---------- Estado vazio ---------- */
 
 .empty {
   text-align: center;
-  padding: 60px 20px;
+  padding: 48px 20px;
   color: var(--text-dim);
 }
 
 .empty .big {
-  font-size: 42px;
+  font-size: 44px;
   margin-bottom: 10px;
 }
 
-/* ---------- Charts ---------- */
+/* ---------- Gráfico de barras ---------- */
 
 .bar-chart {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
-  height: 180px;
+  gap: 8px;
+  height: 170px;
   padding-top: 10px;
 }
 
@@ -495,31 +668,30 @@ button {
 
 .bar {
   width: 100%;
-  max-width: 46px;
+  max-width: 40px;
   background: var(--primary);
   border-radius: 6px 6px 0 0;
   min-height: 3px;
-  transition: height 0.3s;
 }
 
 .bar-val {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text-dim);
 }
 
 .bar-lbl {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-dim);
 }
 
 .legend {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-dim);
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .legend span {
@@ -528,7 +700,14 @@ button {
   gap: 6px;
 }
 
-/* ---------- Misc ---------- */
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---------- Diversos ---------- */
 
 .row-between {
   display: flex;
@@ -548,13 +727,15 @@ button {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 4px;
+  width: 100%;
 }
 
 .pill-tabs button {
+  flex: 1;
   border: none;
   background: transparent;
   color: var(--text-dim);
-  padding: 6px 14px;
+  padding: 8px 10px;
   border-radius: 9px;
   font-weight: 700;
   font-size: 13px;
@@ -566,53 +747,36 @@ button {
   box-shadow: var(--shadow);
 }
 
-.mobile-nav {
-  display: none;
-}
-
-/* ---------- Topbar (usuário + seletor de veículo) ---------- */
-
-.main-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.user-menu {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.user-email {
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 600;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ---------- Autenticação / telas cheias ---------- */
 
 .auth-wrap {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 14px;
   padding: 24px;
+  background: var(--bg);
 }
 
 .auth-card {
   width: 100%;
   max-width: 380px;
   padding: 26px;
+}
+
+.auth-card .brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 22px;
+}
+
+.auth-card .brand .dot {
+  color: var(--primary);
 }
 
 .auth-msg {
@@ -639,49 +803,4 @@ code {
   border-radius: 5px;
   padding: 1px 5px;
   font-size: 0.9em;
-}
-
-/* ---------- Responsive ---------- */
-
-@media (max-width: 820px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    display: none;
-  }
-  .main {
-    padding: 18px 16px 90px;
-  }
-  .mobile-nav {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    justify-content: space-around;
-    padding: 8px 4px;
-    z-index: 40;
-  }
-  .mobile-nav a {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    font-size: 10px;
-    color: var(--text-dim);
-    font-weight: 600;
-    padding: 4px 8px;
-  }
-  .mobile-nav a.active {
-    color: var(--primary);
-  }
-  .mobile-nav .ico {
-    font-size: 19px;
-  }
-  .field-row {
-    grid-template-columns: 1fr;
-  }
 }

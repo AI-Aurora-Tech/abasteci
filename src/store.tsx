@@ -63,13 +63,32 @@ interface Store {
 
 const StoreContext = createContext<Store | null>(null)
 
+// Erros do Supabase (PostgrestError/AuthError) são objetos simples, não
+// instâncias de Error — por isso precisamos extrair os campos manualmente,
+// senão o alert mostraria "[object Object]".
+function formatError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>
+    const parts = [e.message, e.details, e.hint]
+      .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    if (e.code) parts.push(`(código ${String(e.code)})`)
+    if (parts.length) return parts.join(' — ')
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return String(err)
+    }
+  }
+  return String(err)
+}
+
 async function run(action: () => Promise<void>) {
   try {
     await action()
   } catch (err) {
     console.error(err)
-    const msg = err instanceof Error ? err.message : String(err)
-    alert('Ocorreu um erro ao salvar no Supabase:\n' + msg)
+    alert('Ocorreu um erro ao salvar no Supabase:\n' + formatError(err))
   }
 }
 

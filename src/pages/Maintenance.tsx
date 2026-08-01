@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader } from '../components/ui'
+import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
 import type { MaintenanceType } from '../types'
 import { brl, currentOdometer, formatDate, km, todayISO } from '../utils'
 
@@ -34,7 +34,7 @@ export default function Maintenance() {
         title="Manutenções"
         subtitle={`Total registrado: ${brl(total)}`}
         action={
-          <button className="btn primary" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={() => setOpen(true)}>
             + Manutenção
           </button>
         }
@@ -48,40 +48,19 @@ export default function Maintenance() {
           action={<button className="btn primary" onClick={() => setOpen(true)}>Registrar manutenção</button>}
         />
       ) : (
-        <div className="card table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Serviço</th>
-                <th className="num">Hodômetro</th>
-                <th className="num">Valor</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((m) => (
-                <tr key={m.id}>
-                  <td>{formatDate(m.date)}</td>
-                  <td>
-                    <span className={'badge ' + (m.type === 'Preventiva' ? 'green' : 'orange')}>{m.type}</span>
-                  </td>
-                  <td>
-                    {m.service}
-                    {m.workshop && <div className="muted" style={{ fontSize: 12 }}>{m.workshop}</div>}
-                  </td>
-                  <td className="num">{km(m.odometer)}</td>
-                  <td className="num">{brl(m.value)}</td>
-                  <td>
-                    <button className="btn danger" onClick={() => removeMaintenance(m.id)} title="Excluir">
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card">
+          {items.map((m) => (
+            <RecordCard
+              key={m.id}
+              icon="🔧"
+              title={m.service}
+              subtitle={m.workshop ? `${m.workshop}` : undefined}
+              meta={[formatDate(m.date), km(m.odometer)]}
+              amount={brl(m.value)}
+              badge={<span className={'badge ' + (m.type === 'Preventiva' ? 'green' : 'orange')}>{m.type}</span>}
+              onDelete={() => removeMaintenance(m.id)}
+            />
+          ))}
         </div>
       )}
 
