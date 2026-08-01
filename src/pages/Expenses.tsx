@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { ExpenseCategory } from '../types'
+import type { Expense, ExpenseCategory } from '../types'
 import { brl, currentOdometer, formatDate, todayISO } from '../utils'
 
 const CATEGORIES: ExpenseCategory[] = [
@@ -31,6 +31,21 @@ export default function Expenses() {
   const { data, removeExpense } = useStore()
   const vehicle = useSelectedVehicle()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Expense | null>(null)
+
+  const openNew = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const openEdit = (e: Expense) => {
+    setEditing(e)
+    setOpen(true)
+  }
+  const confirmDelete = (e: Expense) => {
+    if (confirm(`Excluir a despesa "${e.description || e.category}" (${brl(e.value)})?`)) {
+      void removeExpense(e.id)
+    }
+  }
 
   const expenses = useMemo(
     () =>
@@ -56,7 +71,7 @@ export default function Expenses() {
         title="Despesas"
         subtitle={`Total registrado: ${brl(total)}`}
         action={
-          <button className="btn primary sm" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={openNew}>
             + Despesa
           </button>
         }
@@ -67,7 +82,7 @@ export default function Expenses() {
           icon="💸"
           title="Nenhuma despesa"
           hint="Registre IPVA, seguro, multas, pedágios e outros custos fixos do veículo."
-          action={<button className="btn primary" onClick={() => setOpen(true)}>Registrar despesa</button>}
+          action={<button className="btn primary" onClick={openNew}>Registrar despesa</button>}
         />
       ) : (
         <div className="card">
@@ -79,43 +94,46 @@ export default function Expenses() {
               subtitle={e.category}
               meta={[formatDate(e.date)]}
               amount={brl(e.value)}
-              onDelete={() => removeExpense(e.id)}
+              onEdit={() => openEdit(e)}
+              onDelete={() => confirmDelete(e)}
             />
           ))}
         </div>
       )}
 
-      {open && <ExpenseForm onClose={() => setOpen(false)} />}
+      {open && <ExpenseForm editing={editing} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function ExpenseForm({ onClose }: { onClose: () => void }) {
-  const { data, addExpense } = useStore()
+function ExpenseForm({ editing, onClose }: { editing: Expense | null; onClose: () => void }) {
+  const { data, addExpense, updateExpense } = useStore()
   const vehicle = useSelectedVehicle()!
-  const [date, setDate] = useState(todayISO())
-  const [category, setCategory] = useState<ExpenseCategory>('IPVA')
-  const [description, setDescription] = useState('')
-  const [value, setValue] = useState('')
-  const [odometer, setOdometer] = useState('')
+  const [date, setDate] = useState(editing?.date ?? todayISO())
+  const [category, setCategory] = useState<ExpenseCategory>(editing?.category ?? 'IPVA')
+  const [description, setDescription] = useState(editing?.description ?? '')
+  const [value, setValue] = useState(editing ? String(editing.value) : '')
+  const [odometer, setOdometer] = useState(editing?.odometer ? String(editing.odometer) : '')
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
+  function submit(ev: React.FormEvent) {
+    ev.preventDefault()
     const v = parseFloat(value.replace(',', '.')) || 0
     if (!v) return
-    addExpense({
+    const payload = {
       vehicleId: vehicle.id,
       date,
       category,
       description: description.trim() || category,
       value: v,
       odometer: odometer ? parseInt(odometer, 10) : undefined,
-    })
+    }
+    if (editing) void updateExpense(editing.id, payload)
+    else void addExpense(payload)
     onClose()
   }
 
   return (
-    <Modal title="Nova despesa" onClose={onClose}>
+    <Modal title={editing ? 'Editar despesa' : 'Nova despesa'} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">

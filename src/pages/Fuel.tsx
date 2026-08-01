@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { FuelType } from '../types'
+import type { Fueling, FuelType } from '../types'
 import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
 
 const FUEL_TYPES: FuelType[] = [
@@ -19,6 +19,21 @@ export default function Fuel() {
   const { data, removeFueling } = useStore()
   const vehicle = useSelectedVehicle()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Fueling | null>(null)
+
+  const openNew = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const openEdit = (f: Fueling) => {
+    setEditing(f)
+    setOpen(true)
+  }
+  const confirmDelete = (f: Fueling) => {
+    if (confirm(`Excluir o abastecimento de ${formatDate(f.date)} (${brl(f.total)})?`)) {
+      void removeFueling(f.id)
+    }
+  }
 
   const fuelings = useMemo(
     () =>
@@ -43,7 +58,7 @@ export default function Fuel() {
         title="Abastecimentos"
         subtitle={`${vehicle.name} · ${fuelings.length} registro(s)`}
         action={
-          <button className="btn primary sm" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={openNew}>
             + Abastecer
           </button>
         }
@@ -55,7 +70,7 @@ export default function Fuel() {
           title="Nenhum abastecimento"
           hint="Registre seus abastecimentos para acompanhar consumo médio, gasto e preço do combustível."
           action={
-            <button className="btn primary" onClick={() => setOpen(true)}>
+            <button className="btn primary" onClick={openNew}>
               Registrar abastecimento
             </button>
           }
@@ -75,28 +90,29 @@ export default function Fuel() {
               ]}
               amount={brl(f.total)}
               badge={<span className={'badge ' + (f.fullTank ? 'green' : '')}>{f.fullTank ? 'Cheio' : 'Parcial'}</span>}
-              onDelete={() => removeFueling(f.id)}
+              onEdit={() => openEdit(f)}
+              onDelete={() => confirmDelete(f)}
             />
           ))}
         </div>
       )}
 
-      {open && <FuelForm onClose={() => setOpen(false)} />}
+      {open && <FuelForm editing={editing} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function FuelForm({ onClose }: { onClose: () => void }) {
-  const { data, addFueling } = useStore()
+function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () => void }) {
+  const { data, addFueling, updateFueling } = useStore()
   const vehicle = useSelectedVehicle()!
-  const [date, setDate] = useState(todayISO())
-  const [odometer, setOdometer] = useState(String(currentOdometer(data, vehicle) || ''))
-  const [fuelType, setFuelType] = useState<FuelType>(vehicle.fuelType)
-  const [liters, setLiters] = useState('')
-  const [pricePerLiter, setPricePerLiter] = useState('')
-  const [total, setTotal] = useState('')
-  const [fullTank, setFullTank] = useState(true)
-  const [station, setStation] = useState('')
+  const [date, setDate] = useState(editing?.date ?? todayISO())
+  const [odometer, setOdometer] = useState(String(editing?.odometer ?? (currentOdometer(data, vehicle) || '')))
+  const [fuelType, setFuelType] = useState<FuelType>(editing?.fuelType ?? vehicle.fuelType)
+  const [liters, setLiters] = useState(editing ? String(editing.liters) : '')
+  const [pricePerLiter, setPricePerLiter] = useState(editing ? String(editing.pricePerLiter) : '')
+  const [total, setTotal] = useState(editing ? String(editing.total) : '')
+  const [fullTank, setFullTank] = useState(editing ? editing.fullTank : true)
+  const [station, setStation] = useState(editing?.station ?? '')
   const [lastEdited, setLastEdited] = useState<'liters' | 'price' | 'total' | null>(null)
 
   const L = parseFloat(liters.replace(',', '.')) || 0
@@ -118,7 +134,7 @@ function FuelForm({ onClose }: { onClose: () => void }) {
     const litersFinal = L || (T && P ? T / P : 0)
     const priceFinal = P || (T && L ? T / L : 0)
     if (!litersFinal || !finalTotal) return
-    addFueling({
+    const payload = {
       vehicleId: vehicle.id,
       date,
       odometer: parseInt(odometer, 10) || vehicle.odometer,
@@ -128,12 +144,14 @@ function FuelForm({ onClose }: { onClose: () => void }) {
       total: Number(finalTotal.toFixed(2)),
       fullTank,
       station: station.trim() || undefined,
-    })
+    }
+    if (editing) void updateFueling(editing.id, payload)
+    else void addFueling(payload)
     onClose()
   }
 
   return (
-    <Modal title="Novo abastecimento" onClose={onClose}>
+    <Modal title={editing ? 'Editar abastecimento' : 'Novo abastecimento'} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">

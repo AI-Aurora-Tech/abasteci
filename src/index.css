@@ -350,6 +350,17 @@ button {
   min-width: 0;
 }
 
+.rec-main.tappable {
+  cursor: pointer;
+  border-radius: 10px;
+  margin: -6px;
+  padding: 6px;
+}
+
+.rec-main.tappable:active {
+  background: var(--surface-2);
+}
+
 .rec-title {
   font-weight: 700;
   font-size: 15px;

@@ -2,13 +2,28 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader } from '../components/ui'
-import type { ReminderBasis } from '../types'
+import type { Reminder, ReminderBasis } from '../types'
 import { currentOdometer, daysUntil, formatDate, km } from '../utils'
 
 export default function Reminders() {
   const { data, toggleReminder, removeReminder } = useStore()
   const vehicle = useSelectedVehicle()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Reminder | null>(null)
+
+  const openNew = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const openEdit = (r: Reminder) => {
+    setEditing(r)
+    setOpen(true)
+  }
+  const confirmDelete = (r: Reminder) => {
+    if (confirm(`Excluir o lembrete "${r.title}"?`)) {
+      void removeReminder(r.id)
+    }
+  }
 
   const odo = vehicle ? currentOdometer(data, vehicle) : 0
 
@@ -42,7 +57,7 @@ export default function Reminders() {
         title="Lembretes"
         subtitle="Avisos por data ou quilometragem"
         action={
-          <button className="btn primary sm" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={openNew}>
             + Lembrete
           </button>
         }
@@ -53,7 +68,7 @@ export default function Reminders() {
           icon="🔔"
           title="Nenhum lembrete"
           hint="Crie lembretes para troca de óleo, licenciamento, revisões e nunca mais esqueça um prazo."
-          action={<button className="btn primary" onClick={() => setOpen(true)}>Criar lembrete</button>}
+          action={<button className="btn primary" onClick={openNew}>Criar lembrete</button>}
         />
       ) : (
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
@@ -63,9 +78,14 @@ export default function Reminders() {
                 <span className={'badge ' + (r.done ? 'green' : r.overdue ? 'red' : r.soon ? 'orange' : 'blue')}>
                   {r.done ? 'Concluído' : r.overdue ? 'Vencido' : r.soon ? 'Em breve' : 'Agendado'}
                 </span>
-                <button className="btn danger" onClick={() => removeReminder(r.id)} title="Excluir">
-                  🗑
-                </button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn ghost sm" onClick={() => openEdit(r)} title="Editar">
+                    ✎
+                  </button>
+                  <button className="btn danger" onClick={() => confirmDelete(r)} title="Excluir">
+                    🗑
+                  </button>
+                </div>
               </div>
               <div style={{ fontWeight: 700, fontSize: 16, margin: '10px 0 6px' }}>{r.title}</div>
               <div className="muted" style={{ fontSize: 13 }}>
@@ -98,35 +118,37 @@ export default function Reminders() {
         </div>
       )}
 
-      {open && <ReminderForm onClose={() => setOpen(false)} />}
+      {open && <ReminderForm editing={editing} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function ReminderForm({ onClose }: { onClose: () => void }) {
-  const { data, addReminder } = useStore()
+function ReminderForm({ editing, onClose }: { editing: Reminder | null; onClose: () => void }) {
+  const { data, addReminder, updateReminder } = useStore()
   const vehicle = useSelectedVehicle()!
-  const [title, setTitle] = useState('')
-  const [basis, setBasis] = useState<ReminderBasis>('date')
-  const [dueDate, setDueDate] = useState('')
-  const [dueOdometer, setDueOdometer] = useState('')
+  const [title, setTitle] = useState(editing?.title ?? '')
+  const [basis, setBasis] = useState<ReminderBasis>(editing?.basis ?? 'date')
+  const [dueDate, setDueDate] = useState(editing?.dueDate ?? '')
+  const [dueOdometer, setDueOdometer] = useState(editing?.dueOdometer ? String(editing.dueOdometer) : '')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    addReminder({
+    const payload = {
       vehicleId: vehicle.id,
       title: title.trim(),
       basis,
       dueDate: basis !== 'odometer' && dueDate ? dueDate : undefined,
       dueOdometer: basis !== 'date' && dueOdometer ? parseInt(dueOdometer, 10) : undefined,
-      done: false,
-    })
+      done: editing?.done ?? false,
+    }
+    if (editing) void updateReminder(editing.id, payload)
+    else void addReminder(payload)
     onClose()
   }
 
   return (
-    <Modal title="Novo lembrete" onClose={onClose}>
+    <Modal title={editing ? 'Editar lembrete' : 'Novo lembrete'} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="field">
           <label>Título</label>

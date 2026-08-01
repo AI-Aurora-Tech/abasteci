@@ -2,13 +2,28 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { MaintenanceType } from '../types'
+import type { Maintenance as MaintenanceEntry, MaintenanceType } from '../types'
 import { brl, currentOdometer, formatDate, km, todayISO } from '../utils'
 
 export default function Maintenance() {
   const { data, removeMaintenance } = useStore()
   const vehicle = useSelectedVehicle()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<MaintenanceEntry | null>(null)
+
+  const openNew = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const openEdit = (m: MaintenanceEntry) => {
+    setEditing(m)
+    setOpen(true)
+  }
+  const confirmDelete = (m: MaintenanceEntry) => {
+    if (confirm(`Excluir a manutenção "${m.service}" (${brl(m.value)})?`)) {
+      void removeMaintenance(m.id)
+    }
+  }
 
   const items = useMemo(
     () =>
@@ -34,7 +49,7 @@ export default function Maintenance() {
         title="Manutenções"
         subtitle={`Total registrado: ${brl(total)}`}
         action={
-          <button className="btn primary sm" onClick={() => setOpen(true)}>
+          <button className="btn primary sm" onClick={openNew}>
             + Manutenção
           </button>
         }
@@ -45,7 +60,7 @@ export default function Maintenance() {
           icon="🔧"
           title="Nenhuma manutenção"
           hint="Registre trocas de óleo, revisões e reparos, preventivos ou corretivos."
-          action={<button className="btn primary" onClick={() => setOpen(true)}>Registrar manutenção</button>}
+          action={<button className="btn primary" onClick={openNew}>Registrar manutenção</button>}
         />
       ) : (
         <div className="card">
@@ -58,32 +73,33 @@ export default function Maintenance() {
               meta={[formatDate(m.date), km(m.odometer)]}
               amount={brl(m.value)}
               badge={<span className={'badge ' + (m.type === 'Preventiva' ? 'green' : 'orange')}>{m.type}</span>}
-              onDelete={() => removeMaintenance(m.id)}
+              onEdit={() => openEdit(m)}
+              onDelete={() => confirmDelete(m)}
             />
           ))}
         </div>
       )}
 
-      {open && <MaintenanceForm onClose={() => setOpen(false)} />}
+      {open && <MaintenanceForm editing={editing} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function MaintenanceForm({ onClose }: { onClose: () => void }) {
-  const { data, addMaintenance } = useStore()
+function MaintenanceForm({ editing, onClose }: { editing: MaintenanceEntry | null; onClose: () => void }) {
+  const { data, addMaintenance, updateMaintenance } = useStore()
   const vehicle = useSelectedVehicle()!
-  const [date, setDate] = useState(todayISO())
-  const [type, setType] = useState<MaintenanceType>('Preventiva')
-  const [service, setService] = useState('')
-  const [odometer, setOdometer] = useState(String(currentOdometer(data, vehicle) || ''))
-  const [value, setValue] = useState('')
-  const [workshop, setWorkshop] = useState('')
+  const [date, setDate] = useState(editing?.date ?? todayISO())
+  const [type, setType] = useState<MaintenanceType>(editing?.type ?? 'Preventiva')
+  const [service, setService] = useState(editing?.service ?? '')
+  const [odometer, setOdometer] = useState(String(editing?.odometer ?? (currentOdometer(data, vehicle) || '')))
+  const [value, setValue] = useState(editing ? String(editing.value) : '')
+  const [workshop, setWorkshop] = useState(editing?.workshop ?? '')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     const v = parseFloat(value.replace(',', '.')) || 0
     if (!service.trim()) return
-    addMaintenance({
+    const payload = {
       vehicleId: vehicle.id,
       date,
       type,
@@ -91,12 +107,14 @@ function MaintenanceForm({ onClose }: { onClose: () => void }) {
       odometer: parseInt(odometer, 10) || vehicle.odometer,
       value: v,
       workshop: workshop.trim() || undefined,
-    })
+    }
+    if (editing) void updateMaintenance(editing.id, payload)
+    else void addMaintenance(payload)
     onClose()
   }
 
   return (
-    <Modal title="Nova manutenção" onClose={onClose}>
+    <Modal title={editing ? 'Editar manutenção' : 'Nova manutenção'} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">

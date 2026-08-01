@@ -76,6 +76,7 @@ export function RecordCard({
   meta,
   amount,
   badge,
+  onEdit,
   onDelete,
 }: {
   icon?: ReactNode
@@ -84,12 +85,29 @@ export function RecordCard({
   meta?: ReactNode[]
   amount?: ReactNode
   badge?: ReactNode
+  onEdit?: () => void
   onDelete?: () => void
 }) {
+  const editable = typeof onEdit === 'function'
   return (
     <div className="rec">
       {icon != null && <div className="rec-icon">{icon}</div>}
-      <div className="rec-main">
+      <div
+        className={'rec-main' + (editable ? ' tappable' : '')}
+        onClick={editable ? onEdit : undefined}
+        role={editable ? 'button' : undefined}
+        tabIndex={editable ? 0 : undefined}
+        onKeyDown={
+          editable
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onEdit!()
+                }
+              }
+            : undefined
+        }
+      >
         <div className="rec-title">{title}</div>
         {subtitle && <div className="rec-sub">{subtitle}</div>}
         {meta && meta.length > 0 && (

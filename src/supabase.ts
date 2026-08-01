@@ -254,6 +254,87 @@ export async function setReminderDone(id: string, done: boolean): Promise<void> 
   if (error) throw error
 }
 
+// ---------- Edição (update de linha existente) ----------
+
+export async function updateFuelingRow(id: string, f: Omit<Fueling, 'id'>): Promise<Fueling> {
+  const { data, error } = await client()
+    .from('fuelings')
+    .update({
+      vehicle_id: f.vehicleId,
+      date: f.date,
+      odometer: f.odometer,
+      fuel_type: f.fuelType,
+      liters: f.liters,
+      price_per_liter: f.pricePerLiter,
+      total: f.total,
+      full_tank: f.fullTank,
+      station: f.station ?? null,
+      note: f.note ?? null,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return toFueling(data)
+}
+
+export async function updateExpenseRow(id: string, e: Omit<Expense, 'id'>): Promise<Expense> {
+  const { data, error } = await client()
+    .from('expenses')
+    .update({
+      vehicle_id: e.vehicleId,
+      date: e.date,
+      category: e.category,
+      description: e.description,
+      odometer: e.odometer ?? null,
+      value: e.value,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return toExpense(data)
+}
+
+export async function updateMaintenanceRow(id: string, m: Omit<Maintenance, 'id'>): Promise<Maintenance> {
+  const { data, error } = await client()
+    .from('maintenances')
+    .update({
+      vehicle_id: m.vehicleId,
+      date: m.date,
+      type: m.type,
+      service: m.service,
+      odometer: m.odometer,
+      value: m.value,
+      workshop: m.workshop ?? null,
+      note: m.note ?? null,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return toMaintenance(data)
+}
+
+export async function updateReminderRow(id: string, r: Omit<Reminder, 'id'>): Promise<Reminder> {
+  const { data, error } = await client()
+    .from('reminders')
+    .update({
+      vehicle_id: r.vehicleId,
+      title: r.title,
+      basis: r.basis,
+      due_date: r.dueDate ?? null,
+      due_odometer: r.dueOdometer ?? null,
+      done: r.done,
+      note: r.note ?? null,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return toReminder(data)
+}
+
 export async function deleteRow(
   table: 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders',
   id: string,

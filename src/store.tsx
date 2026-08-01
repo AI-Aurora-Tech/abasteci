@@ -45,15 +45,19 @@ interface Store {
   removeVehicle: (id: string) => Promise<void>
 
   addFueling: (f: Omit<Fueling, 'id'>) => Promise<void>
+  updateFueling: (id: string, f: Omit<Fueling, 'id'>) => Promise<void>
   removeFueling: (id: string) => Promise<void>
 
   addExpense: (e: Omit<Expense, 'id'>) => Promise<void>
+  updateExpense: (id: string, e: Omit<Expense, 'id'>) => Promise<void>
   removeExpense: (id: string) => Promise<void>
 
   addMaintenance: (m: Omit<Maintenance, 'id'>) => Promise<void>
+  updateMaintenance: (id: string, m: Omit<Maintenance, 'id'>) => Promise<void>
   removeMaintenance: (id: string) => Promise<void>
 
   addReminder: (r: Omit<Reminder, 'id'>) => Promise<void>
+  updateReminder: (id: string, r: Omit<Reminder, 'id'>) => Promise<void>
   toggleReminder: (id: string) => Promise<void>
   removeReminder: (id: string) => Promise<void>
 
@@ -211,6 +215,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((d) => ({ ...d, fuelings: [...d.fuelings, row] }))
     })
   }, [])
+  const updateFueling: Store['updateFueling'] = useCallback(async (id, f) => {
+    await run(async () => {
+      const row = await db.updateFuelingRow(id, f)
+      setData((d) => ({ ...d, fuelings: d.fuelings.map((x) => (x.id === id ? row : x)) }))
+    })
+  }, [])
   const removeFueling: Store['removeFueling'] = useCallback(async (id) => {
     await run(async () => {
       await db.deleteRow('fuelings', id)
@@ -222,6 +232,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await run(async () => {
       const row = await db.insertExpense(e)
       setData((d) => ({ ...d, expenses: [...d.expenses, row] }))
+    })
+  }, [])
+  const updateExpense: Store['updateExpense'] = useCallback(async (id, e) => {
+    await run(async () => {
+      const row = await db.updateExpenseRow(id, e)
+      setData((d) => ({ ...d, expenses: d.expenses.map((x) => (x.id === id ? row : x)) }))
     })
   }, [])
   const removeExpense: Store['removeExpense'] = useCallback(async (id) => {
@@ -237,6 +253,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((d) => ({ ...d, maintenances: [...d.maintenances, row] }))
     })
   }, [])
+  const updateMaintenance: Store['updateMaintenance'] = useCallback(async (id, m) => {
+    await run(async () => {
+      const row = await db.updateMaintenanceRow(id, m)
+      setData((d) => ({ ...d, maintenances: d.maintenances.map((x) => (x.id === id ? row : x)) }))
+    })
+  }, [])
   const removeMaintenance: Store['removeMaintenance'] = useCallback(async (id) => {
     await run(async () => {
       await db.deleteRow('maintenances', id)
@@ -248,6 +270,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await run(async () => {
       const row = await db.insertReminder(r)
       setData((d) => ({ ...d, reminders: [...d.reminders, row] }))
+    })
+  }, [])
+  const updateReminder: Store['updateReminder'] = useCallback(async (id, r) => {
+    await run(async () => {
+      const row = await db.updateReminderRow(id, r)
+      setData((d) => ({ ...d, reminders: d.reminders.map((x) => (x.id === id ? row : x)) }))
     })
   }, [])
   const toggleReminder: Store['toggleReminder'] = useCallback(
@@ -312,12 +340,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateVehicle,
       removeVehicle,
       addFueling,
+      updateFueling,
       removeFueling,
       addExpense,
+      updateExpense,
       removeExpense,
       addMaintenance,
+      updateMaintenance,
       removeMaintenance,
       addReminder,
+      updateReminder,
       toggleReminder,
       removeReminder,
       loadSample,
@@ -337,12 +369,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateVehicle,
       removeVehicle,
       addFueling,
+      updateFueling,
       removeFueling,
       addExpense,
+      updateExpense,
       removeExpense,
       addMaintenance,
+      updateMaintenance,
       removeMaintenance,
       addReminder,
+      updateReminder,
       toggleReminder,
       removeReminder,
       loadSample,
