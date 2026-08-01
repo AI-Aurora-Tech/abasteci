@@ -1,6 +1,6 @@
 # ⛽ abasteci
 
-Aplicativo de **gestão de veículos e custos** inspirado no [Drivvo](https://www.drivvo.com/pt-BR/).
+Aplicativo de **gestão de veículos e custos**.
 Controle abastecimentos, despesas, manutenções e lembretes, e acompanhe consumo médio,
 custo por quilômetro e gasto mensal — tudo em uma interface simples, em português.
 
