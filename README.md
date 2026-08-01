@@ -70,6 +70,19 @@ npm run preview  # serve o build gerado
 Ao abrir, crie sua conta em **Criar conta**, faça login e use *Configurações → Popular com
 dados de exemplo* para ver o painel preenchido.
 
+## 📲 Instalar no celular (PWA)
+
+O abasteci é um **PWA**: dá para instalar na tela inicial do celular, com ícone próprio,
+abrindo em tela cheia (sem a barra do navegador) e com cache offline dos arquivos do app.
+
+- **Android (Chrome):** abra o site → menu **⋮** → **Instalar aplicativo** / *Adicionar à tela inicial*.
+- **iPhone (Safari):** abra o site → botão **Compartilhar** → **Adicionar à Tela de Início**.
+
+Os ícones ficam em `public/icons/` (192, 512 e *maskable*) e `public/apple-touch-icon.png`;
+o manifesto e o service worker são gerados no build por [`vite-plugin-pwa`](https://vite-pwa-org.netlify.app/).
+Para testar a instalação, use `npm run build && npm run preview` (ou `npm run dev`) e acesse por **HTTPS**
+ou por `localhost` — navegadores só instalam PWAs em contexto seguro.
+
 ## 🧱 Stack
 
 - [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
