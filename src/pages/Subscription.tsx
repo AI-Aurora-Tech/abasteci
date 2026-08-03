@@ -6,8 +6,9 @@ import { daysUntil, formatDate } from '../utils'
 const PRICE = 'R$ 4,99'
 
 export default function Subscription({ gate = false }: { gate?: boolean }) {
-  const { subscription, startSubscription, refreshSubscription, signOut, user } = useStore()
+  const { subscription, startSubscription, cancelSubscription, refreshSubscription, signOut, user } = useStore()
   const [busy, setBusy] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const status = subscription?.status
@@ -26,6 +27,19 @@ export default function Subscription({ gate = false }: { gate?: boolean }) {
       setError(e instanceof Error ? e.message : 'Não foi possível iniciar a assinatura. Tente novamente.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function cancel() {
+    if (!confirm('Cancelar sua assinatura? Você mantém o acesso até o fim do período atual.')) return
+    setError(null)
+    setCanceling(true)
+    try {
+      await cancelSubscription()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível cancelar agora. Tente novamente.')
+    } finally {
+      setCanceling(false)
     }
   }
 
@@ -50,35 +64,40 @@ export default function Subscription({ gate = false }: { gate?: boolean }) {
       </ul>
 
       {active ? (
-        <div className="auth-msg info" style={{ textAlign: 'center' }}>
-          <strong>Assinatura ativa</strong>
-          <div style={{ marginTop: 4, fontWeight: 500 }}>
-            {inTrial
-              ? `Teste grátis — faltam ${trialDays} dia(s)${trialEnd ? ` (até ${formatDate(trialEnd)})` : ''}.`
-              : nextCharge
-                ? `Próxima cobrança em ${formatDate(nextCharge)}.`
-                : 'Obrigado por assinar!'}
+        <>
+          <div className="auth-msg info" style={{ textAlign: 'center' }}>
+            <strong>Assinatura ativa</strong>
+            <div style={{ marginTop: 4, fontWeight: 500 }}>
+              {inTrial
+                ? `Teste grátis — faltam ${trialDays} dia(s)${trialEnd ? ` (até ${formatDate(trialEnd)})` : ''}. Nada foi cobrado.`
+                : nextCharge
+                  ? `Próxima cobrança em ${formatDate(nextCharge)}.`
+                  : 'Obrigado por assinar!'}
+            </div>
           </div>
-        </div>
+          {error && <div className="auth-msg error">{error}</div>}
+          <button className="btn danger block" style={{ border: '1px solid var(--danger)' }} onClick={() => void cancel()} disabled={canceling}>
+            {canceling ? 'Cancelando…' : 'Cancelar assinatura'}
+          </button>
+        </>
       ) : (
         <>
-          {status === 'pending' && (
-            <div className="auth-msg info" style={{ textAlign: 'center' }}>
-              Cadastro do cartão pendente. Conclua para ativar o mês grátis.
-            </div>
-          )}
           {(status === 'paused' || status === 'cancelled') && (
             <div className="auth-msg error" style={{ textAlign: 'center' }}>
               Sua assinatura está {status === 'paused' ? 'pausada' : 'cancelada'}. Reative para continuar usando.
             </div>
           )}
+          <div className="auth-msg info" style={{ textAlign: 'center' }}>
+            🔒 Cadastre seu cartão para <strong>garantir sua assinatura</strong>.<br />
+            Nenhuma cobrança agora — você tem <strong>30 dias grátis</strong>.
+          </div>
           {error && <div className="auth-msg error">{error}</div>}
           <button className="btn primary block" onClick={() => void subscribe()} disabled={busy}>
-            {busy ? 'Abrindo pagamento…' : status === 'pending' ? 'Continuar cadastro' : 'Começar 1 mês grátis'}
+            {busy ? 'Abrindo Mercado Pago…' : 'Concluir Cadastro'}
           </button>
           <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 10 }}>
-            Você informa o cartão no ambiente seguro do <strong>Mercado Pago</strong>. Nada é cobrado nos
-            primeiros 30 dias; depois, {PRICE}/mês. Cancele quando quiser.
+            Você cadastra o cartão no ambiente seguro do <strong>Mercado Pago</strong>. Nada é cobrado nos
+            primeiros 30 dias; depois, {PRICE}/mês. <strong>Cancele quando quiser.</strong>
           </p>
         </>
       )}

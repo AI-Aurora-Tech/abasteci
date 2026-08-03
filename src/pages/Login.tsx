@@ -13,7 +13,7 @@ function GoogleIcon() {
 }
 
 export default function Login() {
-  const { signIn, signUp, signInWithGoogle, resetPassword } = useStore()
+  const { signIn, signUp, signInWithGoogle, resetPassword, billingEnabled } = useStore()
   const [mode, setMode] = useState<'in' | 'up' | 'forgot'>('in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -78,6 +78,12 @@ export default function Login() {
           {mode === 'up' && 'Crie sua conta gratuita'}
           {mode === 'forgot' && 'Recuperar acesso à conta'}
         </p>
+
+        {mode === 'up' && billingEnabled && (
+          <div className="trial-note">
+            🎁 <strong>30 dias grátis.</strong> Depois, R$ 4,99/mês. Cancele quando quiser.
+          </div>
+        )}
 
         {mode !== 'forgot' && (
           <>
