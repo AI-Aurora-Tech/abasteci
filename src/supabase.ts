@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type {
   Expense,
   Fueling,
@@ -358,6 +358,57 @@ export async function deleteRow(
   const { error } = await client().from(table).delete().eq('id', id)
   if (error) throw error
 }
+
+// ---------- Realtime (sincronização entre dispositivos) ----------
+
+export type RealtimeTable = 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders'
+
+export type RealtimeRow = Vehicle | Fueling | Expense | Maintenance | Reminder
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const REALTIME_MAPPERS: Record<RealtimeTable, (r: any) => RealtimeRow> = {
+  vehicles: toVehicle,
+  fuelings: toFueling,
+  expenses: toExpense,
+  maintenances: toMaintenance,
+  reminders: toReminder,
+}
+
+/**
+ * Assina as mudanças (insert/update/delete) das tabelas do usuário logado.
+ * O RLS garante que só chegam as linhas do próprio usuário; ainda filtramos
+ * por user_id por segurança. Retorna o canal para ser encerrado depois.
+ */
+export function subscribeToUserData(
+  userId: string,
+  onUpsert: (table: RealtimeTable, row: RealtimeRow) => void,
+  onRemove: (table: RealtimeTable, id: string) => void,
+): RealtimeChannel {
+  const c = client()
+  const channel = c.channel(`user-data-${userId}`)
+  ;(Object.keys(REALTIME_MAPPERS) as RealtimeTable[]).forEach((table) => {
+    channel.on(
+      'postgres_changes' as any,
+      { event: '*', schema: 'public', table },
+      (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old
+          if (old?.id) onRemove(table, old.id)
+        } else {
+          const row = payload.new
+          if (row && row.user_id === userId) onUpsert(table, REALTIME_MAPPERS[table](row))
+        }
+      },
+    )
+  })
+  channel.subscribe()
+  return channel
+}
+
+export function removeChannel(channel: RealtimeChannel): void {
+  supabase?.removeChannel(channel)
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------- Assinatura (Mercado Pago) ----------
 

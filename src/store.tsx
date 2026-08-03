@@ -25,6 +25,19 @@ const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
 const billingEnabled = import.meta.env.VITE_BILLING_ENABLED === 'true'
 const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [] }
 
+// Aplica uma mudança recebida do Realtime ao estado local.
+function upsertInto(d: AppData, table: db.RealtimeTable, row: db.RealtimeRow): AppData {
+  const list = d[table] as { id: string }[]
+  const exists = list.some((x) => x.id === row.id)
+  const next = exists ? list.map((x) => (x.id === row.id ? row : x)) : [...list, row]
+  return { ...d, [table]: next } as AppData
+}
+
+function removeFrom(d: AppData, table: db.RealtimeTable, id: string): AppData {
+  const next = (d[table] as { id: string }[]).filter((x) => x.id !== id)
+  return { ...d, [table]: next } as AppData
+}
+
 interface Store {
   configured: boolean
   sessionLoading: boolean
@@ -183,6 +196,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSubscription(null)
     }
   }, [session?.user?.id, refresh, refreshSubscription])
+
+  // Sincronização em tempo real: reflete mudanças feitas em outros dispositivos.
+  useEffect(() => {
+    if (!supabase || !session?.user) return
+    const userId = session.user.id
+    const channel = db.subscribeToUserData(
+      userId,
+      (table, row) => setData((d) => upsertInto(d, table, row)),
+      (table, id) => setData((d) => removeFrom(d, table, id)),
+    )
+    return () => db.removeChannel(channel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
 
   useEffect(() => {
     if (selectedVehicleId) localStorage.setItem(SELECTED_KEY, selectedVehicleId)

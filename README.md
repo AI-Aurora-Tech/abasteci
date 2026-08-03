@@ -26,6 +26,8 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
 - **Lembretes** — por data, por quilometragem ou ambos, com destaque para vencidos e próximos.
 - **Relatórios** — gasto mensal por categoria, composição dos custos, preço médio do litro e
   detalhamento mensal, com filtro de período.
+- **Sincronização em tempo real** — mudanças (novo abastecimento, edição, exclusão) aparecem
+  automaticamente em outros dispositivos com o app aberto na mesma conta (Supabase Realtime).
 - **Vários veículos** — carros, motos etc., cada um com cor de identificação.
 - **Dados de exemplo** — em *Configurações*, um clique insere um carro e uma moto com histórico
   na sua conta para explorar o app.
@@ -64,9 +66,12 @@ setup, pois apaga os dados).
 
 Se você criou as tabelas em uma versão anterior, rode no SQL Editor as migrações incrementais:
 [`0002_fueling_location.sql`](supabase/migrations/0002_fueling_location.sql) (colunas
-`latitude`/`longitude` do "posto por GPS") e
+`latitude`/`longitude` do "posto por GPS"),
 [`0003_payment_method.sql`](supabase/migrations/0003_payment_method.sql) (coluna
-`payment_method` da forma de pagamento).
+`payment_method` da forma de pagamento),
+[`0004_subscriptions.sql`](supabase/migrations/0004_subscriptions.sql) (tabela de assinaturas) e
+[`0005_realtime.sql`](supabase/migrations/0005_realtime.sql) (**necessária** para a
+sincronização em tempo real entre dispositivos).
 
 ### Login com Google e recuperação de senha
 

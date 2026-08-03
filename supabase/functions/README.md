@@ -38,6 +38,10 @@ No **SQL Editor** do Supabase, rode
 
    Na resposta, copie o **`id`** — é o seu `MP_PREAPPROVAL_PLAN_ID`.
 
+> **Atalho:** em vez dos comandos manuais abaixo, você pode usar os scripts prontos
+> `scripts/create-mp-plan.ps1` (cria o plano) e `scripts/setup-mercadopago.ps1`
+> (segredos + deploy). Versões `.sh` também estão disponíveis.
+
 ## 3. Segredos e deploy das funções (Supabase CLI)
 
 ```bash
