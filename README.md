@@ -28,6 +28,10 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
 - **Vários veículos** — carros, motos etc., cada um com cor de identificação.
 - **Dados de exemplo** — em *Configurações*, um clique insere um carro e uma moto com histórico
   na sua conta para explorar o app.
+- **Assinatura (opcional)** — plano **R$ 4,99/mês com 1 mês grátis**, cartão recorrente via
+  **Mercado Pago**, com paywall para novos usuários. Desligada por padrão
+  (`VITE_BILLING_ENABLED=false`); veja [`supabase/functions/README.md`](supabase/functions/README.md)
+  para ativar (criar o plano, publicar as Edge Functions e configurar o webhook).
 
 ## 🔧 Configurar o Supabase
 

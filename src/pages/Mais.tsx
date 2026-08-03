@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui'
 
-const items = [
+const baseItems = [
   { to: '/manutencoes', icon: '🔧', label: 'Manutenções' },
   { to: '/lembretes', icon: '🔔', label: 'Lembretes' },
   { to: '/veiculos', icon: '🚗', label: 'Veículos' },
@@ -10,7 +10,10 @@ const items = [
 ]
 
 export default function Mais() {
-  const { user, signOut } = useStore()
+  const { user, signOut, billingEnabled } = useStore()
+  const items = billingEnabled
+    ? [...baseItems, { to: '/assinatura', icon: '⭐', label: 'Assinatura' }]
+    : baseItems
 
   return (
     <>

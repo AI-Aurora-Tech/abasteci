@@ -4,6 +4,7 @@ import type {
   Fueling,
   Maintenance,
   Reminder,
+  Subscription,
   Vehicle,
 } from './types'
 
@@ -356,6 +357,32 @@ export async function deleteRow(
 ): Promise<void> {
   const { error } = await client().from(table).delete().eq('id', id)
   if (error) throw error
+}
+
+// ---------- Assinatura (Mercado Pago) ----------
+
+export async function fetchSubscription(): Promise<Subscription | null> {
+  try {
+    const { data, error } = await client().from('subscriptions').select('*').maybeSingle()
+    if (error) return null // tabela ausente / não configurado
+    if (!data) return null
+    return {
+      status: data.status,
+      mpPreapprovalId: data.mp_preapproval_id ?? undefined,
+      trialEnd: data.trial_end ?? undefined,
+      currentPeriodEnd: data.current_period_end ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Chama a Edge Function que cria a assinatura e retorna o link de checkout. */
+export async function startCheckout(): Promise<{ initPoint?: string; alreadyActive?: boolean }> {
+  const { data, error } = await client().functions.invoke('subscribe')
+  if (error) throw error
+  const d = data as { init_point?: string; alreadyActive?: boolean }
+  return { initPoint: d.init_point, alreadyActive: d.alreadyActive }
 }
 
 export async function deleteAllForUser(): Promise<void> {

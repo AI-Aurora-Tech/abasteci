@@ -14,6 +14,7 @@ import type {
   Fueling,
   Maintenance,
   Reminder,
+  Subscription,
   Vehicle,
 } from './types'
 import * as db from './supabase'
@@ -21,6 +22,7 @@ import { isConfigured, supabase } from './supabase'
 import { sampleRows } from './seed'
 
 const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
+const billingEnabled = import.meta.env.VITE_BILLING_ENABLED === 'true'
 const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [] }
 
 interface Store {
@@ -32,6 +34,13 @@ interface Store {
   dataLoading: boolean
   data: AppData
   refresh: () => Promise<void>
+
+  billingEnabled: boolean
+  subscription: Subscription | null
+  subLoading: boolean
+  hasAccess: boolean
+  refreshSubscription: () => Promise<void>
+  startSubscription: () => Promise<void>
 
   selectedVehicleId: string | null
   setSelectedVehicleId: (id: string | null) => void
@@ -101,6 +110,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [data, setData] = useState<AppData>(EMPTY)
   const [dataLoading, setDataLoading] = useState(false)
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [subLoading, setSubLoading] = useState(billingEnabled)
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     () => localStorage.getItem(SELECTED_KEY) || null,
   )
@@ -133,14 +144,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const refreshSubscription = useCallback(async () => {
+    if (!supabase || !billingEnabled) {
+      setSubscription(null)
+      setSubLoading(false)
+      return
+    }
+    setSubLoading(true)
+    try {
+      setSubscription(await db.fetchSubscription())
+    } finally {
+      setSubLoading(false)
+    }
+  }, [])
+
+  const startSubscription = useCallback(async () => {
+    const { initPoint, alreadyActive } = await db.startCheckout()
+    if (alreadyActive) {
+      await refreshSubscription()
+      return
+    }
+    if (initPoint) window.location.href = initPoint
+  }, [refreshSubscription])
+
   // Carrega os dados quando há usuário logado; limpa ao sair.
   useEffect(() => {
     if (session?.user) {
       void refresh()
+      void refreshSubscription()
     } else {
       setData(EMPTY)
+      setSubscription(null)
     }
-  }, [session?.user?.id, refresh])
+  }, [session?.user?.id, refresh, refreshSubscription])
 
   useEffect(() => {
     if (selectedVehicleId) localStorage.setItem(SELECTED_KEY, selectedVehicleId)
@@ -175,6 +211,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const signOut: Store['signOut'] = useCallback(async () => {
     await supabase?.auth.signOut()
     setData(EMPTY)
+    setSubscription(null)
   }, [])
 
   // ---------- CRUD ----------
@@ -331,6 +368,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dataLoading,
       data,
       refresh,
+      billingEnabled,
+      subscription,
+      subLoading,
+      hasAccess: !billingEnabled || subscription?.status === 'authorized',
+      refreshSubscription,
+      startSubscription,
       selectedVehicleId,
       setSelectedVehicleId,
       signIn,
@@ -361,6 +404,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dataLoading,
       data,
       refresh,
+      subscription,
+      subLoading,
+      refreshSubscription,
+      startSubscription,
       selectedVehicleId,
       signIn,
       signUp,

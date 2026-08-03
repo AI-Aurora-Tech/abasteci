@@ -96,6 +96,15 @@ export interface Reminder {
   note?: string
 }
 
+export type SubscriptionStatus = 'pending' | 'authorized' | 'paused' | 'cancelled'
+
+export interface Subscription {
+  status: SubscriptionStatus
+  mpPreapprovalId?: string
+  trialEnd?: string
+  currentPeriodEnd?: string
+}
+
 export interface AppData {
   vehicles: Vehicle[]
   fuelings: Fueling[]

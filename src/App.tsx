@@ -12,6 +12,7 @@ import Reports from './pages/Reports'
 import Vehicles from './pages/Vehicles'
 import Settings from './pages/Settings'
 import Mais from './pages/Mais'
+import Subscription from './pages/Subscription'
 
 function Splash({ children }: { children: React.ReactNode }) {
   return (
@@ -52,13 +53,17 @@ function ConfigError({ message }: { message?: string }) {
 }
 
 export default function App() {
-  const { configured, sessionLoading, session, dataLoading } = useStore()
+  const { configured, sessionLoading, session, dataLoading, billingEnabled, subLoading, hasAccess } =
+    useStore()
 
   if (!configured) return <ConfigError />
   if (configError) return <ConfigError message={configError} />
   if (sessionLoading) return <Splash>Carregando…</Splash>
   if (!session) return <Login />
-  if (dataLoading) return <Splash>Carregando seus dados…</Splash>
+  if (dataLoading || (billingEnabled && subLoading)) return <Splash>Carregando…</Splash>
+
+  // Paywall: sem assinatura ativa (nem em teste grátis), exige assinar.
+  if (billingEnabled && !hasAccess) return <Subscription gate />
 
   return (
     <Routes>
@@ -71,6 +76,7 @@ export default function App() {
         <Route path="relatorios" element={<Reports />} />
         <Route path="veiculos" element={<Vehicles />} />
         <Route path="mais" element={<Mais />} />
+        <Route path="assinatura" element={<Subscription />} />
         <Route path="config" element={<Settings />} />
       </Route>
     </Routes>
