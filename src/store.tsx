@@ -186,6 +186,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const startSubscription = useCallback(async () => {
+    // Modo simples: link de pagamento público do Mercado Pago (assinatura).
+    const linkUrl = import.meta.env.VITE_MP_CHECKOUT_URL as string | undefined
+    if (linkUrl) {
+      window.location.href = linkUrl
+      return
+    }
+    // Modo API: Edge Function cria a assinatura por usuário (plano + trial).
     const { initPoint, alreadyActive } = await db.startCheckout()
     if (alreadyActive) {
       await refreshSubscription()
