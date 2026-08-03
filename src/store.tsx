@@ -55,6 +55,7 @@ interface Store {
   hasAccess: boolean
   refreshSubscription: () => Promise<void>
   startSubscription: () => Promise<void>
+  cancelSubscription: () => Promise<void>
 
   selectedVehicleId: string | null
   setSelectedVehicleId: (id: string | null) => void
@@ -199,6 +200,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return
     }
     if (initPoint) window.location.href = initPoint
+  }, [refreshSubscription])
+
+  const cancelSubscription = useCallback(async () => {
+    await db.cancelSubscription()
+    await refreshSubscription()
   }, [refreshSubscription])
 
   // Carrega os dados quando há usuário logado; limpa ao sair.
@@ -478,6 +484,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hasAccess: !billingEnabled || subscription?.status === 'authorized',
       refreshSubscription,
       startSubscription,
+      cancelSubscription,
       selectedVehicleId,
       setSelectedVehicleId,
       recovery,
@@ -522,6 +529,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       subLoading,
       refreshSubscription,
       startSubscription,
+      cancelSubscription,
       selectedVehicleId,
       recovery,
       setDriver,

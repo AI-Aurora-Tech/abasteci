@@ -485,6 +485,12 @@ export async function startCheckout(): Promise<{ initPoint?: string; alreadyActi
   return { initPoint: d.init_point, alreadyActive: d.alreadyActive }
 }
 
+/** Cancela a assinatura do usuário (Edge Function cancel-subscription). */
+export async function cancelSubscription(): Promise<void> {
+  const { error } = await client().functions.invoke('cancel-subscription')
+  if (error) throw error
+}
+
 export async function deleteAllForUser(): Promise<void> {
   // Apagar os veículos remove tudo em cascata (ON DELETE CASCADE).
   const { error } = await client().from('vehicles').delete().neq('id', '00000000-0000-0000-0000-000000000000')
