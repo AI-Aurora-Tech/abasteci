@@ -3,6 +3,7 @@ import { useStore } from './store'
 import { configError } from './supabase'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Fuel from './pages/Fuel'
 import Expenses from './pages/Expenses'
@@ -53,12 +54,13 @@ function ConfigError({ message }: { message?: string }) {
 }
 
 export default function App() {
-  const { configured, sessionLoading, session, dataLoading, billingEnabled, subLoading, hasAccess } =
+  const { configured, sessionLoading, session, recovery, dataLoading, billingEnabled, subLoading, hasAccess } =
     useStore()
 
   if (!configured) return <ConfigError />
   if (configError) return <ConfigError message={configError} />
   if (sessionLoading) return <Splash>Carregando…</Splash>
+  if (recovery) return <ResetPassword />
   if (!session) return <Login />
   if (dataLoading || (billingEnabled && subLoading)) return <Splash>Carregando…</Splash>
 

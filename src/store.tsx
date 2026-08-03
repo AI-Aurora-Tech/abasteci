@@ -45,8 +45,12 @@ interface Store {
   selectedVehicleId: string | null
   setSelectedVehicleId: (id: string | null) => void
 
+  recovery: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  signInWithGoogle: () => Promise<{ error: string | null }>
+  resetPassword: (email: string) => Promise<{ error: string | null }>
+  updatePassword: (password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 
   addVehicle: (v: Omit<Vehicle, 'id' | 'createdAt'>) => Promise<Vehicle | null>
@@ -108,6 +112,7 @@ async function run(action: () => Promise<void>) {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessionLoading, setSessionLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
+  const [recovery, setRecovery] = useState(false)
   const [data, setData] = useState<AppData>(EMPTY)
   const [dataLoading, setDataLoading] = useState(false)
   const [subscription, setSubscription] = useState<Subscription | null>(null)
@@ -126,8 +131,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setSessionLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -205,6 +211,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const signUp: Store['signUp'] = useCallback(async (email, password) => {
     if (!supabase) return { error: 'Supabase não configurado' }
     const { error } = await supabase.auth.signUp({ email, password })
+    return { error: error?.message ?? null }
+  }, [])
+
+  const signInWithGoogle: Store['signInWithGoogle'] = useCallback(async () => {
+    if (!supabase) return { error: 'Supabase não configurado' }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    })
+    return { error: error?.message ?? null }
+  }, [])
+
+  const resetPassword: Store['resetPassword'] = useCallback(async (email) => {
+    if (!supabase) return { error: 'Supabase não configurado' }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    })
+    return { error: error?.message ?? null }
+  }, [])
+
+  const updatePassword: Store['updatePassword'] = useCallback(async (password) => {
+    if (!supabase) return { error: 'Supabase não configurado' }
+    const { error } = await supabase.auth.updateUser({ password })
+    if (!error) setRecovery(false)
     return { error: error?.message ?? null }
   }, [])
 
@@ -376,8 +406,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startSubscription,
       selectedVehicleId,
       setSelectedVehicleId,
+      recovery,
       signIn,
       signUp,
+      signInWithGoogle,
+      resetPassword,
+      updatePassword,
       signOut,
       addVehicle,
       updateVehicle,
@@ -409,8 +443,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       refreshSubscription,
       startSubscription,
       selectedVehicleId,
+      recovery,
       signIn,
       signUp,
+      signInWithGoogle,
+      resetPassword,
+      updatePassword,
       signOut,
       addVehicle,
       updateVehicle,

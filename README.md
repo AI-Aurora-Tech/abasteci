@@ -10,7 +10,8 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
 
 ## ✨ Funcionalidades
 
-- **Login por e-mail/senha** (Supabase Auth) — dados por usuário, protegidos por RLS.
+- **Login por e-mail/senha, Google e recuperação de senha** (Supabase Auth) — dados por
+  usuário, protegidos por RLS.
 - **Painel** — KPIs de consumo médio (km/l), custo por km, gasto do mês e hodômetro, com
   gráfico de gasto mensal, próximos lembretes e atividade recente.
 - **Abastecimentos** — registro com cálculo automático de litros × preço = total, controle
@@ -66,6 +67,16 @@ Se você criou as tabelas em uma versão anterior, rode no SQL Editor as migraç
 `latitude`/`longitude` do "posto por GPS") e
 [`0003_payment_method.sql`](supabase/migrations/0003_payment_method.sql) (coluna
 `payment_method` da forma de pagamento).
+
+### Login com Google e recuperação de senha
+
+- **Recuperação de senha** já funciona: a tela de login tem *"Esqueci minha senha"*, que envia
+  um e-mail do Supabase com um link; ao voltar, o app pede a nova senha. Só garanta que a URL do
+  app esteja em **Authentication → URL Configuration → Redirect URLs** no painel do Supabase.
+- **Login com Google:** no **Google Cloud Console**, crie uma credencial OAuth (Web) com o
+  *Authorized redirect URI* `https://SEU-PROJETO.supabase.co/auth/v1/callback`. No **Supabase →
+  Authentication → Providers → Google**, ative e cole o *Client ID* e *Client Secret*. Adicione a
+  URL do app (e `http://localhost:5173`) em **URL Configuration → Site URL / Redirect URLs**.
 
 ## 🚀 Como rodar
 
