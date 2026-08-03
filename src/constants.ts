@@ -1,4 +1,16 @@
-import type { PaymentMethod } from './types'
+import type { PaymentMethod, RidePlatform } from './types'
+
+export const PLATFORMS: RidePlatform[] = ['Uber', '99', 'InDrive', 'iFood', 'Rappi', 'Particular', 'Outro']
+
+export const PLATFORM_ICON: Record<RidePlatform, string> = {
+  Uber: '🚗',
+  '99': '🟡',
+  InDrive: '🟢',
+  iFood: '🛵',
+  Rappi: '🧡',
+  Particular: '🤝',
+  Outro: '💼',
+}
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   'Dinheiro',

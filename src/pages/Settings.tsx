@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { PageHeader } from '../components/ui'
 
 export default function Settings() {
-  const { data, user, loadSample, deleteAllData, refresh } = useStore()
+  const { data, user, driver, setDriver, loadSample, deleteAllData, refresh } = useStore()
   const [busy, setBusy] = useState<string | null>(null)
 
   function exportData() {
@@ -76,6 +76,23 @@ export default function Settings() {
             ⬇ Exportar JSON
           </button>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <label className="row-between" style={{ cursor: 'pointer' }}>
+          <div>
+            <strong>Motorista de aplicativo</strong>
+            <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
+              Ativa o módulo de Receitas e o cálculo de lucro real.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            style={{ width: 22, height: 22 }}
+            checked={driver}
+            onChange={(e) => void setDriver(e.target.checked)}
+          />
+        </label>
       </div>
 
       <div className="card" style={{ borderColor: 'var(--danger)' }}>

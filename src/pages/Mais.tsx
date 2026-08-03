@@ -13,12 +13,14 @@ const baseItems = [
 ]
 
 export default function Mais() {
-  const { user, signOut, billingEnabled } = useStore()
+  const { user, signOut, billingEnabled, driver } = useStore()
   const { canInstall, ios, installed, promptInstall } = useInstall()
   const [iosOpen, setIosOpen] = useState(false)
-  const items = billingEnabled
-    ? [...baseItems, { to: '/assinatura', icon: '⭐', label: 'Assinatura' }]
-    : baseItems
+  const items = [
+    ...(driver ? [{ to: '/receitas', icon: '💚', label: 'Receitas (motorista)' }] : []),
+    ...baseItems,
+    ...(billingEnabled ? [{ to: '/assinatura', icon: '⭐', label: 'Assinatura' }] : []),
+  ]
 
   const showInstall = !installed && (canInstall || ios)
 

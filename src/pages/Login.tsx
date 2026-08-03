@@ -17,6 +17,7 @@ export default function Login() {
   const [mode, setMode] = useState<'in' | 'up' | 'forgot'>('in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isDriver, setIsDriver] = useState(false)
   const [busy, setBusy] = useState(false)
   const [googleBusy, setGoogleBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,8 +52,10 @@ export default function Login() {
       return
     }
 
-    const fn = mode === 'in' ? signIn : signUp
-    const { error } = await fn(email.trim(), password)
+    const { error } =
+      mode === 'in'
+        ? await signIn(email.trim(), password)
+        : await signUp(email.trim(), password, isDriver)
     setBusy(false)
     if (error) {
       setError(translate(error))
@@ -123,6 +126,13 @@ export default function Login() {
                 required
               />
             </div>
+          )}
+
+          {mode === 'up' && (
+            <label className="check-row" style={{ marginBottom: 14, fontSize: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isDriver} onChange={(e) => setIsDriver(e.target.checked)} />
+              Sou motorista de aplicativo (Uber, 99, iFood…)
+            </label>
           )}
 
           {error && <div className="auth-msg error">{error}</div>}

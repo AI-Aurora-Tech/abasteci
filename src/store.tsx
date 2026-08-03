@@ -14,6 +14,7 @@ import type {
   Fueling,
   Maintenance,
   Reminder,
+  Revenue,
   Subscription,
   Vehicle,
 } from './types'
@@ -23,7 +24,7 @@ import { sampleRows } from './seed'
 
 const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
 const billingEnabled = import.meta.env.VITE_BILLING_ENABLED === 'true'
-const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [] }
+const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [], revenues: [] }
 
 // Aplica uma mudança recebida do Realtime ao estado local.
 function upsertInto(d: AppData, table: db.RealtimeTable, row: db.RealtimeRow): AppData {
@@ -59,8 +60,11 @@ interface Store {
   setSelectedVehicleId: (id: string | null) => void
 
   recovery: boolean
+  driver: boolean
+  driverKnown: boolean
+  setDriver: (value: boolean) => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, isDriver?: boolean) => Promise<{ error: string | null }>
   signInWithGoogle: () => Promise<{ error: string | null }>
   resetPassword: (email: string) => Promise<{ error: string | null }>
   updatePassword: (password: string) => Promise<{ error: string | null }>
@@ -86,6 +90,10 @@ interface Store {
   updateReminder: (id: string, r: Omit<Reminder, 'id'>) => Promise<void>
   toggleReminder: (id: string) => Promise<void>
   removeReminder: (id: string) => Promise<void>
+
+  addRevenue: (r: Omit<Revenue, 'id'>) => Promise<void>
+  updateRevenue: (id: string, r: Omit<Revenue, 'id'>) => Promise<void>
+  removeRevenue: (id: string) => Promise<void>
 
   loadSample: () => Promise<void>
   deleteAllData: () => Promise<void>
@@ -234,10 +242,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }, [])
 
-  const signUp: Store['signUp'] = useCallback(async (email, password) => {
+  const signUp: Store['signUp'] = useCallback(async (email, password, isDriver) => {
     if (!supabase) return { error: 'Supabase não configurado' }
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: isDriver === undefined ? undefined : { data: { is_driver: isDriver } },
+    })
     return { error: error?.message ?? null }
+  }, [])
+
+  const setDriver: Store['setDriver'] = useCallback(async (value) => {
+    if (!supabase) return
+    const { error } = await supabase.auth.updateUser({ data: { is_driver: value } })
+    if (error) {
+      console.error(error)
+      alert('Não foi possível salvar sua preferência: ' + error.message)
+    }
   }, [])
 
   const signInWithGoogle: Store['signInWithGoogle'] = useCallback(async () => {
@@ -298,6 +319,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         expenses: d.expenses.filter((e) => e.vehicleId !== id),
         maintenances: d.maintenances.filter((m) => m.vehicleId !== id),
         reminders: d.reminders.filter((r) => r.vehicleId !== id),
+        revenues: d.revenues.filter((r) => r.vehicleId !== id),
       }))
     })
   }, [])
@@ -392,6 +414,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const addRevenue: Store['addRevenue'] = useCallback(async (r) => {
+    await run(async () => {
+      const row = await db.insertRevenue(r)
+      setData((d) => ({ ...d, revenues: [...d.revenues, row] }))
+    })
+  }, [])
+  const updateRevenue: Store['updateRevenue'] = useCallback(async (id, r) => {
+    await run(async () => {
+      const row = await db.updateRevenueRow(id, r)
+      setData((d) => ({ ...d, revenues: d.revenues.map((x) => (x.id === id ? row : x)) }))
+    })
+  }, [])
+  const removeRevenue: Store['removeRevenue'] = useCallback(async (id) => {
+    await run(async () => {
+      await db.deleteRow('revenues', id)
+      setData((d) => ({ ...d, revenues: d.revenues.filter((x) => x.id !== id) }))
+    })
+  }, [])
+
   const loadSample: Store['loadSample'] = useCallback(async () => {
     await run(async () => {
       const rows = sampleRows()
@@ -433,6 +474,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       selectedVehicleId,
       setSelectedVehicleId,
       recovery,
+      driver: session?.user?.user_metadata?.is_driver === true,
+      driverKnown: typeof session?.user?.user_metadata?.is_driver === 'boolean',
+      setDriver,
       signIn,
       signUp,
       signInWithGoogle,
@@ -455,6 +499,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateReminder,
       toggleReminder,
       removeReminder,
+      addRevenue,
+      updateRevenue,
+      removeRevenue,
       loadSample,
       deleteAllData,
     }),
@@ -470,6 +517,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startSubscription,
       selectedVehicleId,
       recovery,
+      setDriver,
       signIn,
       signUp,
       signInWithGoogle,
@@ -492,6 +540,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateReminder,
       toggleReminder,
       removeReminder,
+      addRevenue,
+      updateRevenue,
+      removeRevenue,
       loadSample,
       deleteAllData,
     ],

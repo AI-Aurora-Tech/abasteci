@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useStore } from '../store'
 import { useOnline } from '../pwa'
 import { InstallBanner } from './Install'
+import { DriverOnboarding } from './DriverOnboarding'
 
 const tabs = [
   { to: '/', label: 'Painel', icon: '🏠', end: true },
@@ -59,6 +60,8 @@ export default function Layout() {
         <InstallBanner />
         <Outlet />
       </main>
+
+      <DriverOnboarding />
 
       <nav className="tabbar">
         {tabs.map((t) => (

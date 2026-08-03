@@ -105,10 +105,23 @@ export interface Subscription {
   currentPeriodEnd?: string
 }
 
+export type RidePlatform = 'Uber' | '99' | 'InDrive' | 'iFood' | 'Rappi' | 'Particular' | 'Outro'
+
+export interface Revenue {
+  id: string
+  vehicleId: string
+  date: string
+  platform: RidePlatform
+  description?: string
+  trips?: number
+  value: number
+}
+
 export interface AppData {
   vehicles: Vehicle[]
   fuelings: Fueling[]
   expenses: Expense[]
   maintenances: Maintenance[]
   reminders: Reminder[]
+  revenues: Revenue[]
 }

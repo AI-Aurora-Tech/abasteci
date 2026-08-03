@@ -17,7 +17,7 @@ import {
 } from '../utils'
 
 export default function Dashboard() {
-  const { data } = useStore()
+  const { data, driver } = useStore()
   const vehicle = useSelectedVehicle()
 
   if (!vehicle) {
@@ -60,6 +60,12 @@ export default function Dashboard() {
   ]
   const byMonth = sumByMonth(allSpend, (x) => x.date, (x) => x.value).slice(-6)
 
+  // Motorista de aplicativo: receita e lucro do mês para o veículo.
+  const monthRevenue = data.revenues
+    .filter((r) => r.vehicleId === vehicle.id && r.date.slice(0, 7) === thisMonth)
+    .reduce((s, r) => s + r.value, 0)
+  const monthProfit = monthRevenue - monthTotal
+
   const upcoming = data.reminders
     .filter((r) => r.vehicleId === vehicle.id && !r.done)
     .map((r) => {
@@ -101,6 +107,32 @@ export default function Dashboard() {
         <Kpi label="Gasto no mês" icon="📅" value={brl(monthTotal)} hint={monthLabel(thisMonth + '-01')} />
         <Kpi label="Hodômetro" icon="🛣️" value={km(odo)} hint={`${fuelings.length} abast.`} />
       </div>
+
+      {driver && (
+        <>
+          <div className="section-title">Motorista — lucro do mês</div>
+          <Link to="/receitas" className="card" style={{ display: 'block' }}>
+            <div className="row-between">
+              <div>
+                <div className="muted" style={{ fontSize: 12 }}>Lucro em {monthLabel(thisMonth + '-01')}</div>
+                <div
+                  style={{
+                    fontSize: 26,
+                    fontWeight: 800,
+                    color: monthProfit >= 0 ? 'var(--success)' : 'var(--danger)',
+                  }}
+                >
+                  {brl(monthProfit)}
+                </div>
+              </div>
+              <span className="btn ghost sm">Ver receitas →</span>
+            </div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+              Ganhos {brl(monthRevenue)} · Custos {brl(monthTotal)}
+            </div>
+          </Link>
+        </>
+      )}
 
       <div className="section-title">Gasto mensal</div>
       <div className="card">

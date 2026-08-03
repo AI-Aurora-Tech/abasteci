@@ -4,6 +4,7 @@ import type {
   Fueling,
   Maintenance,
   Reminder,
+  Revenue,
   Subscription,
   Vehicle,
 } from './types'
@@ -109,6 +110,16 @@ const toMaintenance = (r: any): Maintenance => ({
   note: r.note ?? undefined,
 })
 
+const toRevenue = (r: any): Revenue => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  date: r.date,
+  platform: r.platform,
+  description: r.description ?? undefined,
+  trips: r.trips != null ? Number(r.trips) : undefined,
+  value: Number(r.value) || 0,
+})
+
 const toReminder = (r: any): Reminder => ({
   id: r.id,
   vehicleId: r.vehicle_id,
@@ -126,14 +137,15 @@ const toReminder = (r: any): Reminder => ({
 
 export async function fetchAll() {
   const c = client()
-  const [v, f, e, m, r] = await Promise.all([
+  const [v, f, e, m, r, rev] = await Promise.all([
     c.from('vehicles').select('*').order('created_at', { ascending: true }),
     c.from('fuelings').select('*'),
     c.from('expenses').select('*'),
     c.from('maintenances').select('*'),
     c.from('reminders').select('*'),
+    c.from('revenues').select('*'),
   ])
-  const err = v.error || f.error || e.error || m.error || r.error
+  const err = v.error || f.error || e.error || m.error || r.error || rev.error
   if (err) throw err
   return {
     vehicles: (v.data ?? []).map(toVehicle),
@@ -141,6 +153,7 @@ export async function fetchAll() {
     expenses: (e.data ?? []).map(toExpense),
     maintenances: (m.data ?? []).map(toMaintenance),
     reminders: (r.data ?? []).map(toReminder),
+    revenues: (rev.data ?? []).map(toRevenue),
   }
 }
 
@@ -260,6 +273,41 @@ export async function insertReminder(r: Omit<Reminder, 'id'>): Promise<Reminder>
   return toReminder(data)
 }
 
+export async function insertRevenue(r: Omit<Revenue, 'id'>): Promise<Revenue> {
+  const { data, error } = await client()
+    .from('revenues')
+    .insert({
+      vehicle_id: r.vehicleId,
+      date: r.date,
+      platform: r.platform,
+      description: r.description ?? null,
+      trips: r.trips ?? null,
+      value: r.value,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toRevenue(data)
+}
+
+export async function updateRevenueRow(id: string, r: Omit<Revenue, 'id'>): Promise<Revenue> {
+  const { data, error } = await client()
+    .from('revenues')
+    .update({
+      vehicle_id: r.vehicleId,
+      date: r.date,
+      platform: r.platform,
+      description: r.description ?? null,
+      trips: r.trips ?? null,
+      value: r.value,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return toRevenue(data)
+}
+
 export async function setReminderDone(id: string, done: boolean): Promise<void> {
   const { error } = await client().from('reminders').update({ done }).eq('id', id)
   if (error) throw error
@@ -352,7 +400,7 @@ export async function updateReminderRow(id: string, r: Omit<Reminder, 'id'>): Pr
 }
 
 export async function deleteRow(
-  table: 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders',
+  table: 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders' | 'revenues',
   id: string,
 ): Promise<void> {
   const { error } = await client().from(table).delete().eq('id', id)
@@ -361,9 +409,9 @@ export async function deleteRow(
 
 // ---------- Realtime (sincronização entre dispositivos) ----------
 
-export type RealtimeTable = 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders'
+export type RealtimeTable = 'vehicles' | 'fuelings' | 'expenses' | 'maintenances' | 'reminders' | 'revenues'
 
-export type RealtimeRow = Vehicle | Fueling | Expense | Maintenance | Reminder
+export type RealtimeRow = Vehicle | Fueling | Expense | Maintenance | Reminder | Revenue
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const REALTIME_MAPPERS: Record<RealtimeTable, (r: any) => RealtimeRow> = {
@@ -372,6 +420,7 @@ const REALTIME_MAPPERS: Record<RealtimeTable, (r: any) => RealtimeRow> = {
   expenses: toExpense,
   maintenances: toMaintenance,
   reminders: toReminder,
+  revenues: toRevenue,
 }
 
 /**

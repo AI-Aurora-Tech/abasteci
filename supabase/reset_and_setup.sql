@@ -1,8 +1,8 @@
 -- abasteci — RESET + SETUP (rode ISTO no SQL Editor se as tabelas ja existiam
 -- com estrutura divergente, ex.: erro PGRST204 'column not found').
--- ATENCAO: apaga as 5 tabelas e recria do zero. Use so na fase de setup.
+-- ATENCAO: apaga as 6 tabelas e recria do zero. Use so na fase de setup.
 
-drop table if exists public.reminders, public.maintenances, public.expenses, public.fuelings, public.vehicles cascade;
+drop table if exists public.revenues, public.reminders, public.maintenances, public.expenses, public.fuelings, public.vehicles cascade;
 
 -- usuário só acesse os próprios dados (auth.uid() = user_id).
 
@@ -78,12 +78,24 @@ create table if not exists public.reminders (
   note          text
 );
 
+create table if not exists public.revenues (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  vehicle_id   uuid not null references public.vehicles (id) on delete cascade,
+  date         date not null,
+  platform     text not null default 'Outro',
+  description  text,
+  trips        integer,
+  value        numeric not null default 0
+);
+
 -- ---------- Índices ----------
 
 create index if not exists fuelings_vehicle_idx     on public.fuelings (vehicle_id);
 create index if not exists expenses_vehicle_idx     on public.expenses (vehicle_id);
 create index if not exists maintenances_vehicle_idx on public.maintenances (vehicle_id);
 create index if not exists reminders_vehicle_idx    on public.reminders (vehicle_id);
+create index if not exists revenues_vehicle_idx     on public.revenues (vehicle_id);
 
 -- ---------- Row Level Security ----------
 
@@ -92,6 +104,7 @@ alter table public.fuelings     enable row level security;
 alter table public.expenses     enable row level security;
 alter table public.maintenances enable row level security;
 alter table public.reminders    enable row level security;
+alter table public.revenues     enable row level security;
 
 -- Uma política por tabela cobrindo todas as operações (select/insert/update/delete).
 -- O usuário só enxerga e altera linhas em que user_id = auth.uid().
@@ -100,7 +113,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['vehicles', 'fuelings', 'expenses', 'maintenances', 'reminders']
+  foreach t in array array['vehicles', 'fuelings', 'expenses', 'maintenances', 'reminders', 'revenues']
   loop
     execute format('drop policy if exists "own rows" on public.%I;', t);
     execute format(
