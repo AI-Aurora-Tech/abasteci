@@ -1,4 +1,21 @@
 import type { ReactNode } from 'react'
+import { PAYMENT_METHODS } from '../constants'
+
+export function PaymentField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="field">
+      <label>Forma de pagamento</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— não informado —</option>
+        {PAYMENT_METHODS.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
 
 export function Modal({
   title,

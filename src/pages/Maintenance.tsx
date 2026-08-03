@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { Maintenance as MaintenanceEntry, MaintenanceType } from '../types'
+import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../components/ui'
+import type { Maintenance as MaintenanceEntry, MaintenanceType, PaymentMethod } from '../types'
+import { PAYMENT_ICON } from '../constants'
 import { brl, currentOdometer, formatDate, km, todayISO } from '../utils'
 
 export default function Maintenance() {
@@ -70,7 +71,11 @@ export default function Maintenance() {
               icon="🔧"
               title={m.service}
               subtitle={m.workshop ? `${m.workshop}` : undefined}
-              meta={[formatDate(m.date), km(m.odometer)]}
+              meta={[
+                formatDate(m.date),
+                km(m.odometer),
+                ...(m.paymentMethod ? [`${PAYMENT_ICON[m.paymentMethod]} ${m.paymentMethod}`] : []),
+              ]}
               amount={brl(m.value)}
               badge={<span className={'badge ' + (m.type === 'Preventiva' ? 'green' : 'orange')}>{m.type}</span>}
               onEdit={() => openEdit(m)}
@@ -94,6 +99,7 @@ function MaintenanceForm({ editing, onClose }: { editing: MaintenanceEntry | nul
   const [odometer, setOdometer] = useState(String(editing?.odometer ?? (currentOdometer(data, vehicle) || '')))
   const [value, setValue] = useState(editing ? String(editing.value) : '')
   const [workshop, setWorkshop] = useState(editing?.workshop ?? '')
+  const [payment, setPayment] = useState<string>(editing?.paymentMethod ?? '')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -107,6 +113,7 @@ function MaintenanceForm({ editing, onClose }: { editing: MaintenanceEntry | nul
       odometer: parseInt(odometer, 10) || vehicle.odometer,
       value: v,
       workshop: workshop.trim() || undefined,
+      paymentMethod: (payment || undefined) as PaymentMethod | undefined,
     }
     if (editing) void updateMaintenance(editing.id, payload)
     else void addMaintenance(payload)
@@ -152,6 +159,7 @@ function MaintenanceForm({ editing, onClose }: { editing: MaintenanceEntry | nul
           <label>Oficina (opcional)</label>
           <input value={workshop} onChange={(e) => setWorkshop(e.target.value)} placeholder="Ex.: Auto Center Silva" />
         </div>
+        <PaymentField value={payment} onChange={setPayment} />
         <div className="modal-foot">
           <button type="button" className="btn" onClick={onClose}>
             Cancelar

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { Expense, ExpenseCategory } from '../types'
+import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../components/ui'
+import type { Expense, ExpenseCategory, PaymentMethod } from '../types'
+import { PAYMENT_ICON } from '../constants'
 import { brl, currentOdometer, formatDate, todayISO } from '../utils'
 
 const CATEGORIES: ExpenseCategory[] = [
@@ -92,7 +93,10 @@ export default function Expenses() {
               icon={CATEGORY_ICON[e.category]}
               title={e.description || e.category}
               subtitle={e.category}
-              meta={[formatDate(e.date)]}
+              meta={[
+                formatDate(e.date),
+                ...(e.paymentMethod ? [`${PAYMENT_ICON[e.paymentMethod]} ${e.paymentMethod}`] : []),
+              ]}
               amount={brl(e.value)}
               onEdit={() => openEdit(e)}
               onDelete={() => confirmDelete(e)}
@@ -114,6 +118,7 @@ function ExpenseForm({ editing, onClose }: { editing: Expense | null; onClose: (
   const [description, setDescription] = useState(editing?.description ?? '')
   const [value, setValue] = useState(editing ? String(editing.value) : '')
   const [odometer, setOdometer] = useState(editing?.odometer ? String(editing.odometer) : '')
+  const [payment, setPayment] = useState<string>(editing?.paymentMethod ?? '')
 
   function submit(ev: React.FormEvent) {
     ev.preventDefault()
@@ -126,6 +131,7 @@ function ExpenseForm({ editing, onClose }: { editing: Expense | null; onClose: (
       description: description.trim() || category,
       value: v,
       odometer: odometer ? parseInt(odometer, 10) : undefined,
+      paymentMethod: (payment || undefined) as PaymentMethod | undefined,
     }
     if (editing) void updateExpense(editing.id, payload)
     else void addExpense(payload)
@@ -174,6 +180,7 @@ function ExpenseForm({ editing, onClose }: { editing: Expense | null; onClose: (
             />
           </div>
         </div>
+        <PaymentField value={payment} onChange={setPayment} />
         <div className="modal-foot">
           <button type="button" className="btn" onClick={onClose}>
             Cancelar

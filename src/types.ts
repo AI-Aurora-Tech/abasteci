@@ -9,6 +9,14 @@ export type FuelType =
   | 'GNV'
   | 'Elétrico'
 
+export type PaymentMethod =
+  | 'Dinheiro'
+  | 'PIX'
+  | 'Cartão de crédito'
+  | 'Cartão de débito'
+  | 'Vale-combustível'
+  | 'Outro'
+
 export interface Vehicle {
   id: string
   name: string
@@ -35,6 +43,7 @@ export interface Fueling {
   station?: string
   latitude?: number
   longitude?: number
+  paymentMethod?: PaymentMethod
   note?: string
 }
 
@@ -56,6 +65,7 @@ export interface Expense {
   description: string
   odometer?: number
   value: number
+  paymentMethod?: PaymentMethod
 }
 
 export type MaintenanceType = 'Preventiva' | 'Corretiva'
@@ -69,6 +79,7 @@ export interface Maintenance {
   odometer: number
   value: number
   workshop?: string
+  paymentMethod?: PaymentMethod
   note?: string
 }
 

@@ -1,6 +1,6 @@
 # ⛽ abasteci
 
-Aplicativo de **gestão de veículos e custos**.
+Aplicativo de **gestão de veículos e custos** inspirado no [Drivvo](https://www.drivvo.com/pt-BR/).
 Controle abastecimentos, despesas, manutenções e lembretes, e acompanhe consumo médio,
 custo por quilômetro e gasto mensal — tudo em uma interface simples, em português.
 
@@ -18,6 +18,8 @@ custo por quilômetro e gasto mensal — tudo em uma interface simples, em portu
 - **Posto por GPS** — no formulário de abastecimento, o botão 📍 usa a localização do celular
   para encontrar o posto de combustível mais próximo (dados abertos do OpenStreetMap) e
   preencher o campo automaticamente, guardando as coordenadas (com link "ver no mapa").
+- **Forma de pagamento** — em abastecimentos, despesas e manutenções (Dinheiro, PIX, cartão de
+  crédito/débito, vale-combustível, outro), exibida na lista de cada lançamento.
 - **Despesas** — IPVA, seguro, multas, pedágios, estacionamento, lavagem, financiamento e outros.
 - **Manutenções** — preventivas e corretivas, com serviço, oficina e hodômetro.
 - **Lembretes** — por data, por quilometragem ou ambos, com destaque para vencidos e próximos.
@@ -55,10 +57,11 @@ setup, pois apaga os dados).
 
 ### Já tinha o banco criado antes?
 
-Se você criou as tabelas em uma versão anterior, rode a migração incremental
-[`supabase/migrations/0002_fueling_location.sql`](supabase/migrations/0002_fueling_location.sql)
-no SQL Editor para adicionar as colunas de localização (`latitude`/`longitude`) usadas
-pelo recurso de "posto por GPS".
+Se você criou as tabelas em uma versão anterior, rode no SQL Editor as migrações incrementais:
+[`0002_fueling_location.sql`](supabase/migrations/0002_fueling_location.sql) (colunas
+`latitude`/`longitude` do "posto por GPS") e
+[`0003_payment_method.sql`](supabase/migrations/0003_payment_method.sql) (coluna
+`payment_method` da forma de pagamento).
 
 ## 🚀 Como rodar
 

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
-import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
-import type { Fueling, FuelType } from '../types'
+import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../components/ui'
+import type { Fueling, FuelType, PaymentMethod } from '../types'
+import { PAYMENT_ICON } from '../constants'
 import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
 import { locateStation, mapsLink } from '../geo'
 
@@ -93,6 +94,7 @@ export default function Fuel() {
                 `${f.odometer.toLocaleString('pt-BR')} km`,
                 `${num(f.liters)} L`,
                 `${num(f.pricePerLiter, 3)} R$/L`,
+                ...(f.paymentMethod ? [`${PAYMENT_ICON[f.paymentMethod]} ${f.paymentMethod}`] : []),
               ]}
               amount={brl(f.total)}
               badge={<span className={'badge ' + (f.fullTank ? 'green' : '')}>{f.fullTank ? 'Cheio' : 'Parcial'}</span>}
@@ -119,6 +121,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
   const [total, setTotal] = useState(editing ? String(editing.total) : '')
   const [fullTank, setFullTank] = useState(editing ? editing.fullTank : true)
   const [station, setStation] = useState(editing?.station ?? '')
+  const [payment, setPayment] = useState<string>(editing?.paymentMethod ?? '')
   const [latitude, setLatitude] = useState<number | undefined>(editing?.latitude)
   const [longitude, setLongitude] = useState<number | undefined>(editing?.longitude)
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
@@ -177,6 +180,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       station: station.trim() || undefined,
       latitude,
       longitude,
+      paymentMethod: (payment || undefined) as PaymentMethod | undefined,
     }
     if (editing) void updateFueling(editing.id, payload)
     else void addFueling(payload)
@@ -292,6 +296,8 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
             </div>
           )}
         </div>
+
+        <PaymentField value={payment} onChange={setPayment} />
 
         <div className="field check-row">
           <input id="fullTank" type="checkbox" checked={fullTank} onChange={(e) => setFullTank(e.target.checked)} />

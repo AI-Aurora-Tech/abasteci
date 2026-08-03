@@ -36,6 +36,7 @@ create table if not exists public.fuelings (
   station         text,
   latitude        numeric,
   longitude       numeric,
+  payment_method  text,
   note            text
 );
 
@@ -47,7 +48,8 @@ create table if not exists public.expenses (
   category    text not null default 'Outro',
   description text not null default '',
   odometer    numeric,
-  value       numeric not null default 0
+  value       numeric not null default 0,
+  payment_method text
 );
 
 create table if not exists public.maintenances (
@@ -60,6 +62,7 @@ create table if not exists public.maintenances (
   odometer    numeric not null default 0,
   value       numeric not null default 0,
   workshop    text,
+  payment_method text,
   note        text
 );
 

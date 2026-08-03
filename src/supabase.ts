@@ -80,6 +80,7 @@ const toFueling = (r: any): Fueling => ({
   station: r.station ?? undefined,
   latitude: r.latitude != null ? Number(r.latitude) : undefined,
   longitude: r.longitude != null ? Number(r.longitude) : undefined,
+  paymentMethod: r.payment_method ?? undefined,
   note: r.note ?? undefined,
 })
 
@@ -91,6 +92,7 @@ const toExpense = (r: any): Expense => ({
   description: r.description ?? '',
   odometer: r.odometer != null ? Number(r.odometer) : undefined,
   value: Number(r.value) || 0,
+  paymentMethod: r.payment_method ?? undefined,
 })
 
 const toMaintenance = (r: any): Maintenance => ({
@@ -102,6 +104,7 @@ const toMaintenance = (r: any): Maintenance => ({
   odometer: Number(r.odometer) || 0,
   value: Number(r.value) || 0,
   workshop: r.workshop ?? undefined,
+  paymentMethod: r.payment_method ?? undefined,
   note: r.note ?? undefined,
 })
 
@@ -191,6 +194,7 @@ export async function insertFueling(f: Omit<Fueling, 'id'>): Promise<Fueling> {
       station: f.station ?? null,
       latitude: f.latitude ?? null,
       longitude: f.longitude ?? null,
+      payment_method: f.paymentMethod ?? null,
       note: f.note ?? null,
     })
     .select()
@@ -209,6 +213,7 @@ export async function insertExpense(e: Omit<Expense, 'id'>): Promise<Expense> {
       description: e.description,
       odometer: e.odometer ?? null,
       value: e.value,
+      payment_method: e.paymentMethod ?? null,
     })
     .select()
     .single()
@@ -227,6 +232,7 @@ export async function insertMaintenance(m: Omit<Maintenance, 'id'>): Promise<Mai
       odometer: m.odometer,
       value: m.value,
       workshop: m.workshop ?? null,
+      payment_method: m.paymentMethod ?? null,
       note: m.note ?? null,
     })
     .select()
@@ -275,6 +281,7 @@ export async function updateFuelingRow(id: string, f: Omit<Fueling, 'id'>): Prom
       station: f.station ?? null,
       latitude: f.latitude ?? null,
       longitude: f.longitude ?? null,
+      payment_method: f.paymentMethod ?? null,
       note: f.note ?? null,
     })
     .eq('id', id)
@@ -294,6 +301,7 @@ export async function updateExpenseRow(id: string, e: Omit<Expense, 'id'>): Prom
       description: e.description,
       odometer: e.odometer ?? null,
       value: e.value,
+      payment_method: e.paymentMethod ?? null,
     })
     .eq('id', id)
     .select()
@@ -313,6 +321,7 @@ export async function updateMaintenanceRow(id: string, m: Omit<Maintenance, 'id'
       odometer: m.odometer,
       value: m.value,
       workshop: m.workshop ?? null,
+      payment_method: m.paymentMethod ?? null,
       note: m.note ?? null,
     })
     .eq('id', id)
