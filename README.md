@@ -111,6 +111,10 @@ abrindo em tela cheia (sem a barra do navegador) e com cache offline dos arquivo
 - **Android (Chrome):** abra o site → menu **⋮** → **Instalar aplicativo** / *Adicionar à tela inicial*.
 - **iPhone (Safari):** abra o site → botão **Compartilhar** → **Adicionar à Tela de Início**.
 
+O app também tem um **banner "Instalar"** e o item **Mais → Instalar aplicativo** que disparam a
+instalação (ou mostram as instruções no iPhone), além de um indicador **offline**. Para gerar um
+**app nativo de loja** (Google Play/App Store), veja [`GUIA-APP-NATIVO.md`](GUIA-APP-NATIVO.md).
+
 Os ícones ficam em `public/icons/` (192, 512 e *maskable*) e `public/apple-touch-icon.png`;
 o manifesto e o service worker são gerados no build por [`vite-plugin-pwa`](https://vite-pwa-org.netlify.app/).
 Para testar a instalação, use `npm run build && npm run preview` (ou `npm run dev`) e acesse por **HTTPS**

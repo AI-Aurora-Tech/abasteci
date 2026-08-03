@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useStore } from '../store'
+import { useOnline } from '../pwa'
+import { InstallBanner } from './Install'
 
 const tabs = [
   { to: '/', label: 'Painel', icon: '🏠', end: true },
@@ -31,6 +33,16 @@ function VehiclePicker() {
   )
 }
 
+function ConnBadge() {
+  const online = useOnline()
+  if (online) return null
+  return (
+    <span className="conn-badge" title="Sem conexão">
+      ● offline
+    </span>
+  )
+}
+
 export default function Layout() {
   return (
     <div className="app">
@@ -38,11 +50,13 @@ export default function Layout() {
         <div className="brand">
           <span className="dot">⛽</span>
           <span>abasteci</span>
+          <ConnBadge />
         </div>
         <VehiclePicker />
       </header>
 
       <main className="content">
+        <InstallBanner />
         <Outlet />
       </main>
 

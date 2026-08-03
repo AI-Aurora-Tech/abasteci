@@ -184,6 +184,60 @@ button {
   color: var(--primary);
 }
 
+/* ---------- Indicador de conexão ---------- */
+
+.conn-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
+  background: rgba(220, 38, 38, 0.12);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 4px;
+}
+
+/* ---------- Banner de instalação ---------- */
+
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--primary-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.install-banner .ib-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.install-banner .ib-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.install-banner .ib-text strong {
+  font-size: 14px;
+}
+
+.install-banner .ib-text span {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.install-banner .ib-close {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 15px;
+  padding: 4px 6px;
+}
+
 /* ---------- Cabeçalho de página ---------- */
 
 .page-head {
