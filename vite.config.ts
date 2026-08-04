@@ -33,8 +33,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
       devOptions: {
-        // Permite testar a instalação também com "npm run dev".
-        enabled: true,
+        // Desligado no dev para o service worker não servir versões em cache
+        // durante o desenvolvimento (evita "a mudança não aparece"). O PWA
+        // continua funcionando normalmente no build de produção.
+        enabled: false,
       },
     }),
   ],
