@@ -5,6 +5,7 @@ import { EmptyState, Modal, PageHeader, RecordCard } from '../components/ui'
 import type { Revenue, RidePlatform } from '../types'
 import { PLATFORMS, PLATFORM_ICON } from '../constants'
 import { brl, formatDate, todayISO, totalSpent } from '../utils'
+import { UberCard, uberEnabled } from '../components/UberCard'
 
 export default function Revenues() {
   const { data, removeRevenue } = useStore()
@@ -81,6 +82,8 @@ export default function Revenues() {
           {summary.trips > 0 && <Mini label="Ganho/corrida" value={brl(summary.income / summary.trips)} />}
         </div>
       </div>
+
+      {uberEnabled && <UberCard vehicleId={vehicle.id} />}
 
       {revenues.length === 0 ? (
         <EmptyState
