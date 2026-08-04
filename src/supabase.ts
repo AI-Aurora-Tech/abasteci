@@ -137,24 +137,32 @@ const toReminder = (r: any): Reminder => ({
 
 export async function fetchAll() {
   const c = client()
-  const [v, f, e, m, r, rev] = await Promise.all([
-    c.from('vehicles').select('*').order('created_at', { ascending: true }),
-    c.from('fuelings').select('*'),
-    c.from('expenses').select('*'),
-    c.from('maintenances').select('*'),
-    c.from('reminders').select('*'),
-    c.from('revenues').select('*'),
-  ])
-  const err = v.error || f.error || e.error || m.error || r.error || rev.error
-  if (err) throw err
-  return {
-    vehicles: (v.data ?? []).map(toVehicle),
-    fuelings: (f.data ?? []).map(toFueling),
-    expenses: (e.data ?? []).map(toExpense),
-    maintenances: (m.data ?? []).map(toMaintenance),
-    reminders: (r.data ?? []).map(toReminder),
-    revenues: (rev.data ?? []).map(toRevenue),
+
+  // Carrega cada tabela de forma independente: se UMA falhar (ex.: uma
+  // migração ainda não rodada), as demais continuam carregando normalmente,
+  // em vez de deixar o app inteiro vazio.
+  async function grab<T>(table: string, mapper: (r: any) => T, orderBy?: string): Promise<T[]> {
+    let query = c.from(table).select('*')
+    if (orderBy) query = query.order(orderBy, { ascending: true })
+    const { data, error } = await query
+    if (error) {
+      console.error(`abasteci: falha ao carregar "${table}": ${error.message}. ` +
+        'Verifique se as migrações do Supabase foram aplicadas.')
+      return []
+    }
+    return (data ?? []).map(mapper)
   }
+
+  const [vehicles, fuelings, expenses, maintenances, reminders, revenues] = await Promise.all([
+    grab('vehicles', toVehicle, 'created_at'),
+    grab('fuelings', toFueling),
+    grab('expenses', toExpense),
+    grab('maintenances', toMaintenance),
+    grab('reminders', toReminder),
+    grab('revenues', toRevenue),
+  ])
+
+  return { vehicles, fuelings, expenses, maintenances, reminders, revenues }
 }
 
 // ---------- Escrita (o user_id é preenchido pelo default auth.uid() no banco) ----------
@@ -488,6 +496,34 @@ export async function startCheckout(): Promise<{ initPoint?: string; alreadyActi
 /** Cancela a assinatura do usuário (Edge Function cancel-subscription). */
 export async function cancelSubscription(): Promise<void> {
   const { error } = await client().functions.invoke('cancel-subscription')
+  if (error) throw error
+}
+
+// ---------- Integração Uber ----------
+
+export async function uberConnectUrl(): Promise<string> {
+  const { data, error } = await client().functions.invoke('uber-connect')
+  if (error) throw error
+  const url = (data as { url?: string }).url
+  if (!url) throw new Error('Não foi possível iniciar a conexão com a Uber.')
+  return url
+}
+
+export async function uberStatus(): Promise<{ connected: boolean; lastSync: string | null }> {
+  const { data, error } = await client().functions.invoke('uber-status')
+  if (error) throw error
+  const d = data as { connected?: boolean; lastSync?: string | null }
+  return { connected: Boolean(d.connected), lastSync: d.lastSync ?? null }
+}
+
+export async function uberSync(vehicleId: string): Promise<{ imported: number; total?: number }> {
+  const { data, error } = await client().functions.invoke('uber-sync', { body: { vehicleId } })
+  if (error) throw error
+  return data as { imported: number; total?: number }
+}
+
+export async function uberDisconnect(): Promise<void> {
+  const { error } = await client().functions.invoke('uber-disconnect')
   if (error) throw error
 }
 
