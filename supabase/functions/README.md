@@ -7,6 +7,39 @@ cobrança recorrente automática depois. O fluxo usa **duas Edge Functions**
 > Enquanto não terminar esta configuração, mantenha `VITE_BILLING_ENABLED=false`
 > no `.env` — o app funciona normalmente, sem o paywall.
 
+> **⚠️ Segurança:** o **Access Token** é secreto. Nunca coloque no código nem no
+> repositório e não compartilhe em chat/e-mail. Se ele vazar, **gere um novo** no
+> painel do Mercado Pago imediatamente. Ele só deve ser configurado como *segredo*
+> no Supabase (`supabase secrets set`).
+
+## Recomendado: cartão no cadastro + 30 dias grátis (sem cobrança agora)
+
+Para o comportamento "o usuário cadastra o cartão para garantir a assinatura,
+ganha 30 dias grátis, nada é cobrado agora e pode cancelar quando quiser", use o
+**fluxo B (plano + trial)**:
+
+1. Crie o **plano com `free_trial` de 1 mês** (`scripts/create-mp-plan.*`). Com
+   isso, ao cadastrar o cartão a assinatura fica `authorized` e a **1ª cobrança
+   só ocorre após 30 dias**.
+2. Configure `MP_PREAPPROVAL_PLAN_ID` e publique as funções `subscribe`,
+   `mp-webhook` e `cancel-subscription`.
+3. Deixe `VITE_MP_CHECKOUT_URL` **vazio** no app (assim o botão usa a função
+   `subscribe`, que aplica o teste grátis por usuário).
+
+O paywall já força esse cadastro logo após a criação da conta, e a tela de
+assinatura tem o botão **Cancelar assinatura** (função `cancel-subscription`).
+
+## Dois caminhos de cobrança
+
+- **A) Link de pagamento (mais simples):** você cria um link de assinatura no
+  Mercado Pago (mpago.la/...) e coloca em `VITE_MP_CHECKOUT_URL`. O botão "Assinar"
+  abre esse link. Só precisa da Edge Function **`mp-webhook`** (para liberar o
+  acesso). O webhook identifica o usuário pelo **e-mail do pagador** (requer a
+  migração `0007_billing_link.sql`). Não precisa da função `subscribe` nem do
+  `MP_PREAPPROVAL_PLAN_ID`.
+- **B) API (plano + trial por usuário):** as duas funções (`subscribe` e
+  `mp-webhook`) e o `MP_PREAPPROVAL_PLAN_ID`. Passos completos abaixo.
+
 ## 1. Banco de dados
 
 No **SQL Editor** do Supabase, rode
@@ -57,6 +90,7 @@ supabase secrets set \
 
 # publica as funções (o webhook não usa JWT)
 supabase functions deploy subscribe
+supabase functions deploy cancel-subscription
 supabase functions deploy mp-webhook --no-verify-jwt
 ```
 

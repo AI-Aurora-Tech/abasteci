@@ -37,17 +37,23 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
     }).then((r) => r.json())
 
-    const userId: string | undefined = pre.external_reference
-    if (!userId) return new Response('no external_reference', { status: 200 })
-
-    // Mercado Pago: authorized (ativa, inclui período de teste), paused, cancelled, pending
-    const status: string = pre.status ?? 'pending'
-    const nextCharge: string | null = pre.next_payment_date ?? null
-
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // Descobre o usuário: pelo external_reference (fluxo API) ou pelo e-mail
+    // do pagador (fluxo por link de pagamento).
+    let userId: string | undefined = pre.external_reference || undefined
+    if (!userId && pre.payer_email) {
+      const { data } = await admin.rpc('get_user_id_by_email', { p_email: pre.payer_email })
+      if (typeof data === 'string' && data) userId = data
+    }
+    if (!userId) return new Response('no user match', { status: 200 })
+
+    // Mercado Pago: authorized (ativa, inclui período de teste), paused, cancelled, pending
+    const status: string = pre.status ?? 'pending'
+    const nextCharge: string | null = pre.next_payment_date ?? null
 
     // Se há teste grátis, a primeira cobrança marca o fim do trial.
     const { data: current } = await admin

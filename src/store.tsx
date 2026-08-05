@@ -23,7 +23,12 @@ import { isConfigured, supabase } from './supabase'
 import { sampleRows } from './seed'
 
 const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
-const billingEnabled = import.meta.env.VITE_BILLING_ENABLED === 'true'
+
+// TEMPORÁRIO: cobrança/assinatura desativada. Enquanto true, o paywall NÃO
+// aparece, mesmo com VITE_BILLING_ENABLED=true. Para reativar a cobrança,
+// mude esta constante para false.
+const BILLING_DISABLED = true
+const billingEnabled = !BILLING_DISABLED && import.meta.env.VITE_BILLING_ENABLED === 'true'
 const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [], revenues: [] }
 
 // Aplica uma mudança recebida do Realtime ao estado local.
