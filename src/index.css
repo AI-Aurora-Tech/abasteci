@@ -873,6 +873,12 @@ button {
   color: var(--primary-dark);
 }
 
+.advisor-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
 .uber-badge {
   display: inline-block;
   background: #000;
