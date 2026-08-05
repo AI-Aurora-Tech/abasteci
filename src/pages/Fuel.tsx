@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../components/ui'
+import { FuelAdvisor } from '../components/FuelAdvisor'
 import type { Fueling, FuelType, PaymentMethod } from '../types'
 import { PAYMENT_ICON } from '../constants'
 import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
@@ -65,6 +66,11 @@ export default function Fuel() {
           </button>
         }
       />
+
+      {(['Gasolina', 'Gasolina Aditivada', 'Etanol'].includes(vehicle.fuelType) ||
+        fuelings.some((f) => ['Gasolina', 'Gasolina Aditivada', 'Etanol'].includes(f.fuelType))) && (
+        <FuelAdvisor fuelings={fuelings} />
+      )}
 
       {fuelings.length === 0 ? (
         <EmptyState
