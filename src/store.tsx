@@ -24,10 +24,9 @@ import { sampleRows } from './seed'
 
 const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
 
-// TEMPORÁRIO: cobrança/assinatura desativada. Enquanto true, o paywall NÃO
-// aparece, mesmo com VITE_BILLING_ENABLED=true. Para reativar a cobrança,
-// mude esta constante para false.
-const BILLING_DISABLED = true
+// Interruptor mestre da cobrança. Se true, o paywall NUNCA aparece, mesmo
+// com VITE_BILLING_ENABLED=true. Deixe false para a cobrança funcionar.
+const BILLING_DISABLED = false
 const billingEnabled = !BILLING_DISABLED && import.meta.env.VITE_BILLING_ENABLED === 'true'
 const EMPTY: AppData = { vehicles: [], fuelings: [], expenses: [], maintenances: [], reminders: [], revenues: [] }
 
@@ -185,7 +184,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     setSubLoading(true)
     try {
-      setSubscription(await db.fetchSubscription())
+      // Status salvo localmente (rápido).
+      let sub = await db.fetchSubscription()
+      // Baixa automática: se não estiver ativo, consulta o status REAL no
+      // Mercado Pago. Cobre ativação após o checkout e cancelamento (durante
+      // ou depois do teste grátis) quando o webhook não chegou.
+      if (!sub || sub.status !== 'authorized') {
+        try {
+          const reconciled = await db.reconcileSubscription()
+          if (reconciled) sub = reconciled
+        } catch (err) {
+          console.error('reconcileSubscription', err)
+        }
+      }
+      setSubscription(sub)
     } finally {
       setSubLoading(false)
     }

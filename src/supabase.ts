@@ -499,6 +499,23 @@ export async function cancelSubscription(): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * Reconciliação: consulta o status real no Mercado Pago e atualiza a tabela.
+ * É a "baixa automática" quando o webhook não chegou.
+ */
+export async function reconcileSubscription(): Promise<Subscription | null> {
+  const { data, error } = await client().functions.invoke('subscription-refresh')
+  if (error) throw error
+  const d = data as { status?: string; mpPreapprovalId?: string; trialEnd?: string; currentPeriodEnd?: string }
+  if (!d.status || d.status === 'none') return null
+  return {
+    status: d.status as Subscription['status'],
+    mpPreapprovalId: d.mpPreapprovalId,
+    trialEnd: d.trialEnd ?? undefined,
+    currentPeriodEnd: d.currentPeriodEnd ?? undefined,
+  }
+}
+
 // ---------- Integração Uber ----------
 
 export async function uberConnectUrl(): Promise<string> {
