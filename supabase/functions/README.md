@@ -91,6 +91,7 @@ supabase secrets set \
 # publica as funções (o webhook não usa JWT)
 supabase functions deploy subscribe
 supabase functions deploy cancel-subscription
+supabase functions deploy subscription-refresh
 supabase functions deploy mp-webhook --no-verify-jwt
 ```
 
@@ -128,3 +129,26 @@ com o mês grátis).
 - O app lê a própria assinatura (RLS) e libera o acesso quando o status é
   `authorized` (inclui o período de teste grátis). Quando o teste termina, o MP
   cobra automaticamente; se falhar, o status muda e o paywall volta.
+
+## Baixa automática (reconciliação)
+
+O webhook pode não chegar (rede, atraso do MP, ou assinatura feita por link fora
+do fluxo da função `subscribe`). Para garantir que o status fique correto sem
+depender só do webhook, existe a função **`subscription-refresh`**:
+
+- É chamada pelo app **a cada login** (e sempre que o status local não está
+  `authorized`). Consulta o status **real** no Mercado Pago e grava em
+  `subscriptions`.
+- Ordem de busca: pelo `mp_preapproval_id` salvo → por `external_reference`
+  (= id do usuário) → por `payer_email` (= e-mail do usuário, cobre o fluxo por
+  link).
+- Cobre os dois casos que o usuário relatou:
+  1. **Ativação:** depois do checkout, o próximo login já reconhece a assinatura
+     `authorized` e **não pede assinatura de novo**.
+  2. **Cancelamento:** se a pessoa cancelar (no app ou direto no Mercado Pago),
+     durante ou depois do teste grátis, o próximo `subscription-refresh` traz o
+     status `cancelled`/`paused` e o acesso é bloqueado automaticamente.
+
+Por isso `subscription-refresh` **precisa ser publicada** (`supabase functions
+deploy subscription-refresh`) e o segredo `MP_ACCESS_TOKEN` deve estar
+configurado.
