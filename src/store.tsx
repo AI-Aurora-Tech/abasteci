@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
@@ -21,6 +22,7 @@ import type {
 import * as db from './supabase'
 import { isConfigured, supabase } from './supabase'
 import { sampleRows } from './seed'
+import { subscriptionGrantsAccess } from './utils'
 
 const SELECTED_KEY = 'abasteci:selectedVehicle:v1'
 
@@ -143,6 +145,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dataLoading, setDataLoading] = useState(false)
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [subLoading, setSubLoading] = useState(billingEnabled)
+  // Espelha a assinatura para leitura dentro de listeners (sem stale closure).
+  const subRef = useRef<Subscription | null>(null)
+  useEffect(() => {
+    subRef.current = subscription
+  }, [subscription])
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     () => localStorage.getItem(SELECTED_KEY) || null,
   )
@@ -234,6 +241,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSubscription(null)
     }
   }, [session?.user?.id, refresh, refreshSubscription])
+
+  // Ao voltar para o app (ex.: retornando do checkout do Mercado Pago) faz a
+  // baixa automática: se ainda não tem acesso, reconsulta o status no MP e
+  // libera o login assim que a assinatura é confirmada — sem ação manual.
+  useEffect(() => {
+    if (!billingEnabled || !session?.user) return
+    const onFocus = () => {
+      if (document.visibilityState === 'hidden') return
+      if (!subscriptionGrantsAccess(subRef.current)) void refreshSubscription()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [billingEnabled, session?.user?.id, refreshSubscription])
 
   // Sincronização em tempo real: reflete mudanças feitas em outros dispositivos.
   useEffect(() => {
@@ -498,7 +522,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       billingEnabled,
       subscription,
       subLoading,
-      hasAccess: !billingEnabled || subscription?.status === 'authorized',
+      hasAccess: !billingEnabled || subscriptionGrantsAccess(subscription),
       refreshSubscription,
       startSubscription,
       cancelSubscription,

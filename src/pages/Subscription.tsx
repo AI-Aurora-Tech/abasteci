@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui'
-import { daysUntil, formatDate } from '../utils'
+import { accessUntil, daysUntil, formatDate, subscriptionGrantsAccess } from '../utils'
 
 const PRICE = 'R$ 4,99'
 
@@ -17,6 +17,9 @@ export default function Subscription({ gate = false }: { gate?: boolean }) {
   const nextCharge = subscription?.currentPeriodEnd?.slice(0, 10)
   const trialDays = trialEnd ? daysUntil(trialEnd) : null
   const inTrial = active && trialDays !== null && trialDays > 0
+  // Cancelada/pausada mas ainda dentro do período pago (carência).
+  const inGrace = !active && subscriptionGrantsAccess(subscription)
+  const graceUntil = accessUntil(subscription)?.slice(0, 10)
 
   async function subscribe() {
     setError(null)
@@ -78,6 +81,21 @@ export default function Subscription({ gate = false }: { gate?: boolean }) {
           {error && <div className="auth-msg error">{error}</div>}
           <button className="btn danger block" style={{ border: '1px solid var(--danger)' }} onClick={() => void cancel()} disabled={canceling}>
             {canceling ? 'Cancelando…' : 'Cancelar assinatura'}
+          </button>
+        </>
+      ) : inGrace ? (
+        <>
+          <div className="auth-msg info" style={{ textAlign: 'center' }}>
+            <strong>Assinatura {status === 'paused' ? 'pausada' : 'cancelada'}</strong>
+            <div style={{ marginTop: 4, fontWeight: 500 }}>
+              {graceUntil
+                ? `Você mantém o acesso até ${formatDate(graceUntil)}. Depois dessa data será necessário assinar novamente.`
+                : 'Você mantém o acesso até o fim do período atual.'}
+            </div>
+          </div>
+          {error && <div className="auth-msg error">{error}</div>}
+          <button className="btn primary block" onClick={() => void subscribe()} disabled={busy}>
+            {busy ? 'Abrindo Mercado Pago…' : 'Assinar novamente'}
           </button>
         </>
       ) : (

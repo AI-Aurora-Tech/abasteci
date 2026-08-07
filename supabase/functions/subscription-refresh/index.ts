@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
     const { data: row } = await admin
       .from('subscriptions')
-      .select('mp_preapproval_id, status, trial_end')
+      .select('mp_preapproval_id, status, trial_end, current_period_end')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -63,20 +63,26 @@ Deno.serve(async (req) => {
     const nextCharge = (pre.next_payment_date as string) ?? null
     const hasFreeTrial = Boolean((pre.auto_recurring as { free_trial?: unknown } | undefined)?.free_trial)
 
+    // Ao cancelar/pausar, o MP zera next_payment_date. Preservamos a última
+    // data de renovação conhecida para manter o período de carência (o acesso
+    // continua liberado até a data que já estava paga).
+    const currentPeriodEnd = nextCharge ?? row?.current_period_end ?? null
+    const trialEnd = row?.trial_end ?? (hasFreeTrial ? nextCharge : null)
+
     await admin.from('subscriptions').upsert({
       user_id: user.id,
       status,
       mp_preapproval_id: pre.id,
-      current_period_end: nextCharge,
-      trial_end: row?.trial_end ?? (hasFreeTrial ? nextCharge : null),
+      current_period_end: currentPeriodEnd,
+      trial_end: trialEnd,
       updated_at: new Date().toISOString(),
     })
 
     return json({
       status,
       mpPreapprovalId: pre.id,
-      currentPeriodEnd: nextCharge,
-      trialEnd: row?.trial_end ?? (hasFreeTrial ? nextCharge : null),
+      currentPeriodEnd,
+      trialEnd,
     })
   } catch (err) {
     console.error(err)

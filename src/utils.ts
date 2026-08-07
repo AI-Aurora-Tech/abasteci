@@ -1,4 +1,4 @@
-import type { AppData, Fueling, Vehicle } from './types'
+import type { AppData, Fueling, Subscription, Vehicle } from './types'
 
 // ---------- Formatação ----------
 
@@ -115,4 +115,27 @@ export function daysUntil(iso: string): number {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   return Math.round((target.getTime() - now.getTime()) / 86_400_000)
+}
+
+/** Data (ISO) até quando o acesso é garantido: renovação ou fim do teste. */
+export function accessUntil(sub: Subscription | null | undefined): string | null {
+  return sub?.currentPeriodEnd ?? sub?.trialEnd ?? null
+}
+
+/**
+ * Decide se a assinatura libera o acesso ao app.
+ * - `authorized` (inclui teste grátis) → liberado.
+ * - `cancelled`/`paused` → liberado somente ATÉ a data de renovação já paga
+ *   (período de carência). Depois disso, bloqueia e volta a pedir assinatura.
+ * - `pending`/sem assinatura → bloqueado.
+ */
+export function subscriptionGrantsAccess(sub: Subscription | null | undefined): boolean {
+  if (!sub) return false
+  if (sub.status === 'authorized') return true
+  if (sub.status === 'cancelled' || sub.status === 'paused') {
+    const until = accessUntil(sub)
+    if (!until) return false
+    return new Date(until).getTime() > Date.now()
+  }
+  return false
 }

@@ -58,16 +58,20 @@ Deno.serve(async (req) => {
     // Se há teste grátis, a primeira cobrança marca o fim do trial.
     const { data: current } = await admin
       .from('subscriptions')
-      .select('trial_end')
+      .select('trial_end, current_period_end')
       .eq('user_id', userId)
       .maybeSingle()
     const hasFreeTrial = Boolean(pre.auto_recurring?.free_trial)
+
+    // Ao cancelar/pausar o MP zera next_payment_date; preservamos a última
+    // data de renovação conhecida para manter o período de carência.
+    const currentPeriodEnd = nextCharge ?? current?.current_period_end ?? null
 
     await admin.from('subscriptions').upsert({
       user_id: userId,
       status,
       mp_preapproval_id: id,
-      current_period_end: nextCharge,
+      current_period_end: currentPeriodEnd,
       trial_end: current?.trial_end ?? (hasFreeTrial ? nextCharge : null),
       updated_at: new Date().toISOString(),
     })
