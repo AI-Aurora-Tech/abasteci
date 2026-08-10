@@ -72,6 +72,7 @@ export default function Vehicles() {
                 <div style={{ display: 'flex', gap: 18, margin: '16px 0', flexWrap: 'wrap' }}>
                   <Stat label="Placa" value={v.plate} />
                   <Stat label="Combustível" value={v.fuelType} />
+                  {v.tankCapacity != null && <Stat label="Tanque" value={`${v.tankCapacity} L`} />}
                   <Stat label="Hodômetro" value={km(currentOdometer(data, v))} />
                   <Stat label="Gasto total" value={brl(totalSpent(data, v.id))} />
                 </div>
@@ -128,6 +129,9 @@ function VehicleForm({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: (
   const [model, setModel] = useState(vehicle?.model ?? '')
   const [year, setYear] = useState(vehicle?.year ? String(vehicle.year) : '')
   const [fuelType, setFuelType] = useState<FuelType>(vehicle?.fuelType ?? 'Gasolina')
+  const [tankCapacity, setTankCapacity] = useState(
+    vehicle?.tankCapacity != null ? String(vehicle.tankCapacity) : '',
+  )
   const [odometer, setOdometer] = useState(vehicle ? String(vehicle.odometer) : '0')
   const [color, setColor] = useState(vehicle?.color ?? COLORS[0])
 
@@ -141,6 +145,7 @@ function VehicleForm({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: (
       model: model.trim(),
       year: year ? parseInt(year, 10) : null,
       fuelType,
+      tankCapacity: tankCapacity ? parseFloat(tankCapacity.replace(',', '.')) : null,
       odometer: parseInt(odometer, 10) || 0,
       color,
     }
@@ -188,9 +193,18 @@ function VehicleForm({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: (
             </select>
           </div>
           <div className="field">
-            <label>Hodômetro atual (km)</label>
-            <input type="number" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
+            <label>Capacidade do tanque (L)</label>
+            <input
+              inputMode="decimal"
+              value={tankCapacity}
+              onChange={(e) => setTankCapacity(e.target.value)}
+              placeholder="Ex.: 44"
+            />
           </div>
+        </div>
+        <div className="field">
+          <label>Hodômetro atual (km)</label>
+          <input type="number" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
         </div>
         <div className="field">
           <label>Cor de identificação</label>

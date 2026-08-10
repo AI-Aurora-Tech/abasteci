@@ -64,6 +64,7 @@ const toVehicle = (r: any): Vehicle => ({
   model: r.model ?? '',
   year: r.year ?? null,
   fuelType: r.fuel_type,
+  tankCapacity: r.tank_capacity != null ? Number(r.tank_capacity) : null,
   odometer: Number(r.odometer) || 0,
   color: r.color,
   createdAt: r.created_at,
@@ -177,6 +178,7 @@ export async function insertVehicle(v: Omit<Vehicle, 'id' | 'createdAt'>): Promi
       model: v.model,
       year: v.year,
       fuel_type: v.fuelType,
+      tank_capacity: v.tankCapacity,
       odometer: v.odometer,
       color: v.color,
     })
@@ -194,6 +196,7 @@ export async function updateVehicleRow(id: string, patch: Partial<Vehicle>): Pro
   if (patch.model !== undefined) row.model = patch.model
   if (patch.year !== undefined) row.year = patch.year
   if (patch.fuelType !== undefined) row.fuel_type = patch.fuelType
+  if (patch.tankCapacity !== undefined) row.tank_capacity = patch.tankCapacity
   if (patch.odometer !== undefined) row.odometer = patch.odometer
   if (patch.color !== undefined) row.color = patch.color
   const { data, error } = await client().from('vehicles').update(row).eq('id', id).select().single()

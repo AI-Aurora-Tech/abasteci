@@ -25,6 +25,7 @@ export interface Vehicle {
   model: string
   year: number | null
   fuelType: FuelType
+  tankCapacity: number | null // capacidade do tanque em litros
   odometer: number // km atual (atualizado pelos registros)
   color: string // cor de identificação no app
   createdAt: string

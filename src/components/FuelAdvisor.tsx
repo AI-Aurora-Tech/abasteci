@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { Fueling } from '../types'
-import { averageConsumption, brl, num } from '../utils'
+import { brl, num, recentConsumption } from '../utils'
 
 const GAS_TYPES = ['Gasolina', 'Gasolina Aditivada']
-const RECENT = 6
+const RECENT = 5
 
 /** Média do preço/litro dos últimos N abastecimentos de um combustível. */
 function avgRecentPrice(fuelings: Fueling[], n = RECENT): { avg: number | null; count: number } {
@@ -25,9 +25,12 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
   const gasF = fuelings.filter((f) => GAS_TYPES.includes(f.fuelType))
   const ethF = fuelings.filter((f) => f.fuelType === 'Etanol')
 
-  const kmLGas = averageConsumption(gasF)
-  const kmLEth = averageConsumption(ethF)
+  // Consumo (km/l) pelos últimos 5 trechos de cada combustível.
+  const kmLGas = recentConsumption(gasF, RECENT)
+  const kmLEth = recentConsumption(ethF, RECENT)
   const personalized = Boolean(kmLGas && kmLEth)
+  // Ponto de equilíbrio = razão dos consumos. Comparar E/G a esse valor é o
+  // mesmo que comparar o custo por km (preço ÷ km/l) dos dois combustíveis.
   const breakEven = personalized ? kmLEth! / kmLGas! : 0.7
 
   const gasAvg = avgRecentPrice(gasF)
@@ -56,7 +59,7 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="row-between">
         <strong>⛽ Etanol ou gasolina?</strong>
-        <span className="badge">{personalized ? 'seu consumo' : 'regra 70%'}</span>
+        <span className="badge">{personalized ? `últimos ${RECENT}` : 'regra 70%'}</span>
       </div>
 
       <div className="field-row" style={{ marginTop: 12 }}>
@@ -102,7 +105,7 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
             O etanol compensa quando custa até <strong>{brl(threshold)}</strong> (≈{Math.round(breakEven * 100)}% do preço
             da gasolina).
             {personalized
-              ? ` Baseado no seu consumo: ${num(kmLGas!)} km/l na gasolina e ${num(kmLEth!)} km/l no etanol.`
+              ? ` Baseado no consumo dos últimos ${RECENT} abastecimentos: ${num(kmLGas!)} km/l na gasolina e ${num(kmLEth!)} km/l no etanol.`
               : ' Usando a regra dos 70% — registre 2+ abastecimentos de tanque cheio de cada tipo para personalizar.'}
           </p>
           {costGas && costEth && (

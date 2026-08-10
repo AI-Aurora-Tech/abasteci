@@ -52,6 +52,34 @@ export function averageConsumption(fuelings: Fueling[]): number | null {
   return distance / liters
 }
 
+/**
+ * Consumo médio (km/l) considerando apenas os últimos N trechos entre
+ * abastecimentos de tanque cheio. A distância de cada trecho é dividida pela
+ * quantidade de litros do abastecimento SEGUINTE (que reencheu o tanque).
+ */
+export function recentConsumption(fuelings: Fueling[], segments = 5): number | null {
+  const full = [...fuelings]
+    .filter((f) => f.fullTank)
+    .sort((a, b) => a.odometer - b.odometer)
+
+  if (full.length < 2) return null
+
+  // Precisa de (segments + 1) abastecimentos para formar `segments` trechos.
+  const slice = full.slice(-(segments + 1))
+
+  let distance = 0
+  let liters = 0
+  for (let i = 1; i < slice.length; i++) {
+    const d = slice[i].odometer - slice[i - 1].odometer
+    if (d > 0) {
+      distance += d
+      liters += slice[i].liters
+    }
+  }
+  if (liters <= 0) return null
+  return distance / liters
+}
+
 /** Consumo do último trecho fechado (km/l), para exibir a "última medição". */
 export function lastConsumption(fuelings: Fueling[]): number | null {
   const full = [...fuelings]
