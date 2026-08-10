@@ -32,55 +32,6 @@ export const uid = (): string =>
  * Só considera trechos entre dois "tanque cheio" consecutivos, que é a
  * forma correta de medir consumo (mesma lógica usada pelo Drivvo).
  */
-export function averageConsumption(fuelings: Fueling[]): number | null {
-  const full = [...fuelings]
-    .filter((f) => f.fullTank)
-    .sort((a, b) => a.odometer - b.odometer)
-
-  if (full.length < 2) return null
-
-  let distance = 0
-  let liters = 0
-  for (let i = 1; i < full.length; i++) {
-    const d = full[i].odometer - full[i - 1].odometer
-    if (d > 0) {
-      distance += d
-      liters += full[i].liters
-    }
-  }
-  if (liters <= 0) return null
-  return distance / liters
-}
-
-/**
- * Consumo médio (km/l) considerando apenas os últimos N trechos entre
- * abastecimentos de tanque cheio. A distância de cada trecho é dividida pela
- * quantidade de litros do abastecimento SEGUINTE (que reencheu o tanque).
- */
-export function recentConsumption(fuelings: Fueling[], segments = 5): number | null {
-  const full = [...fuelings]
-    .filter((f) => f.fullTank)
-    .sort((a, b) => a.odometer - b.odometer)
-
-  if (full.length < 2) return null
-
-  // Precisa de (segments + 1) abastecimentos para formar `segments` trechos.
-  const slice = full.slice(-(segments + 1))
-
-  let distance = 0
-  let liters = 0
-  for (let i = 1; i < slice.length; i++) {
-    const d = slice[i].odometer - slice[i - 1].odometer
-    if (d > 0) {
-      distance += d
-      liters += slice[i].liters
-    }
-  }
-  if (liters <= 0) return null
-  return distance / liters
-}
-
-/** Consumo do último trecho fechado (km/l), para exibir a "última medição". */
 /** Consumo (km/l) de um tanque específico já consumido. */
 export interface TankConsumption {
   closingId: string // id do abastecimento que FECHA o tanque (o "próximo")
@@ -91,27 +42,63 @@ export interface TankConsumption {
 }
 
 /**
- * Consumo por tanque. Para cada par de abastecimentos de tanque cheio (A→B),
- * o consumo do tanque = distância (odômetro B − A) ÷ litros do abastecimento
- * B (o que reencheu o tanque). O resultado é atribuído ao combustível com que
- * o tanque foi abastecido em A — assim, "tanque de etanol" e "tanque de
- * gasolina" ficam separados. O valor aparece no abastecimento seguinte (B).
+ * Consumo por tanque (método tanque a tanque). Cada tanque é delimitado por
+ * dois abastecimentos de tanque cheio (A→B): a distância é (odômetro B − A) e
+ * os litros são a SOMA de tudo que foi abastecido depois de A até B — ou seja,
+ * inclui os abastecimentos PARCIAIS feitos no meio do caminho (todos juntos
+ * foram o que reencheu o tanque). Sem isso, um parcial no meio inflaria o
+ * km/l (a distância contaria, os litros não). O resultado é atribuído ao
+ * combustível abastecido em A, mantendo etanol e gasolina separados, e é
+ * exibido no abastecimento que fecha o tanque (B).
  */
 export function tankConsumptions(fuelings: Fueling[]): TankConsumption[] {
-  const full = [...fuelings]
-    .filter((f) => f.fullTank)
-    .sort((a, b) => a.odometer - b.odometer)
-
+  const all = [...fuelings].sort((a, b) => a.odometer - b.odometer)
   const out: TankConsumption[] = []
-  for (let i = 1; i < full.length; i++) {
-    const a = full[i - 1]
-    const b = full[i]
-    const d = b.odometer - a.odometer
-    if (d > 0 && b.liters > 0) {
-      out.push({ closingId: b.id, fuel: a.fuelType, kmPerLiter: d / b.liters, distance: d, liters: b.liters })
+  let prev = -1 // índice do último abastecimento de tanque cheio
+  for (let i = 0; i < all.length; i++) {
+    if (!all[i].fullTank) continue
+    if (prev >= 0) {
+      const a = all[prev]
+      const b = all[i]
+      const d = b.odometer - a.odometer
+      // Litros para reencher: tudo abastecido DEPOIS de A até B (inclui os
+      // parciais no meio). A não entra — ele já encheu o tanque no início.
+      let liters = 0
+      for (let k = prev + 1; k <= i; k++) liters += all[k].liters
+      if (d > 0 && liters > 0) {
+        out.push({ closingId: b.id, fuel: a.fuelType, kmPerLiter: d / liters, distance: d, liters })
+      }
     }
+    prev = i
   }
   return out
+}
+
+// Média ponderada pelos litros de um conjunto de tanques: Σ distância ÷ Σ litros.
+function weighted(tanks: TankConsumption[]): number | null {
+  let dist = 0
+  let liters = 0
+  for (const t of tanks) {
+    dist += t.distance
+    liters += t.liters
+  }
+  return liters > 0 ? dist / liters : null
+}
+
+/** Consumo médio (km/l) — média ponderada pelos litros de todos os tanques. */
+export function averageConsumption(fuelings: Fueling[]): number | null {
+  return weighted(tankConsumptions(fuelings))
+}
+
+/** Consumo médio (km/l) considerando apenas os últimos N tanques fechados. */
+export function recentConsumption(fuelings: Fueling[], segments = 5): number | null {
+  return weighted(tankConsumptions(fuelings).slice(-segments))
+}
+
+/** Consumo do último tanque fechado (km/l), para a "última medição". */
+export function lastConsumption(fuelings: Fueling[]): number | null {
+  const tanks = tankConsumptions(fuelings)
+  return tanks.length ? tanks[tanks.length - 1].kmPerLiter : null
 }
 
 /** Média de consumo (km/l) por combustível, separando etanol e gasolina. */
@@ -128,18 +115,6 @@ export function consumptionByFuel(fuelings: Fueling[]): Partial<Record<FuelType,
     if (g.liters > 0) res[fuel] = g.dist / g.liters
   }
   return res
-}
-
-export function lastConsumption(fuelings: Fueling[]): number | null {
-  const full = [...fuelings]
-    .filter((f) => f.fullTank)
-    .sort((a, b) => a.odometer - b.odometer)
-  if (full.length < 2) return null
-  const a = full[full.length - 2]
-  const b = full[full.length - 1]
-  const d = b.odometer - a.odometer
-  if (d <= 0 || b.liters <= 0) return null
-  return d / b.liters
 }
 
 export function totalSpent(data: AppData, vehicleId: string): number {
