@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Fueling, FuelType } from '../types'
 import { brl, consumptionForFuels, num } from '../utils'
 
@@ -40,10 +40,23 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
 
   const [gasPrice, setGasPrice] = useState(gasAvg.avg ? gasAvg.avg.toFixed(2) : '')
   const [ethPrice, setEthPrice] = useState(ethAvg.avg ? ethAvg.avg.toFixed(2) : '')
+  // Enquanto o usuário não digita, os campos acompanham a média mais recente —
+  // então registrar um novo abastecimento atualiza os preços em tempo real.
+  const [gasTouched, setGasTouched] = useState(false)
+  const [ethTouched, setEthTouched] = useState(false)
+
+  useEffect(() => {
+    if (!gasTouched && gasAvg.avg) setGasPrice(gasAvg.avg.toFixed(2))
+  }, [gasAvg.avg, gasTouched])
+  useEffect(() => {
+    if (!ethTouched && ethAvg.avg) setEthPrice(ethAvg.avg.toFixed(2))
+  }, [ethAvg.avg, ethTouched])
 
   const useAverages = () => {
     if (gasAvg.avg) setGasPrice(gasAvg.avg.toFixed(2))
     if (ethAvg.avg) setEthPrice(ethAvg.avg.toFixed(2))
+    setGasTouched(false)
+    setEthTouched(false)
   }
 
   const G = parseFloat(gasPrice.replace(',', '.')) || 0
@@ -71,14 +84,30 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
       <div className="field-row" style={{ marginTop: 12 }}>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Preço gasolina (R$/L)</label>
-          <input inputMode="decimal" value={gasPrice} onChange={(e) => setGasPrice(e.target.value)} placeholder="0,00" />
+          <input
+            inputMode="decimal"
+            value={gasPrice}
+            onChange={(e) => {
+              setGasPrice(e.target.value)
+              setGasTouched(true)
+            }}
+            placeholder="0,00"
+          />
           {gasAvg.avg && (
             <div className="advisor-hint">média de {gasAvg.count} · {brl(gasAvg.avg)}</div>
           )}
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Preço etanol (R$/L)</label>
-          <input inputMode="decimal" value={ethPrice} onChange={(e) => setEthPrice(e.target.value)} placeholder="0,00" />
+          <input
+            inputMode="decimal"
+            value={ethPrice}
+            onChange={(e) => {
+              setEthPrice(e.target.value)
+              setEthTouched(true)
+            }}
+            placeholder="0,00"
+          />
           {ethAvg.avg && (
             <div className="advisor-hint">média de {ethAvg.count} · {brl(ethAvg.avg)}</div>
           )}
