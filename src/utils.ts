@@ -112,6 +112,17 @@ export function recentConsumptionForFuels(
   return weighted(tanks)
 }
 
+/**
+ * Consumo médio (km/l) de um conjunto de combustíveis usando TODO o histórico
+ * de tanques cheios. É o mesmo cálculo do card "Consumo médio por combustível"
+ * (consumptionByFuel), porém agrupando os tipos passados (ex.: Gasolina +
+ * Gasolina Aditivada). Mais estável que a janela dos últimos N — evita que um
+ * único tanque ruidoso distorça a recomendação.
+ */
+export function consumptionForFuels(fuelings: Fueling[], fuels: FuelType[]): number | null {
+  return weighted(tankConsumptions(fuelings).filter((t) => fuels.includes(t.fuel)))
+}
+
 /** Consumo do último tanque fechado (km/l), para a "última medição". */
 export function lastConsumption(fuelings: Fueling[]): number | null {
   const tanks = tankConsumptions(fuelings)

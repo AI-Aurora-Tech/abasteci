@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Fueling, FuelType } from '../types'
-import { brl, num, recentConsumptionForFuels } from '../utils'
+import { brl, consumptionForFuels, num } from '../utils'
 
 const GAS_TYPES: FuelType[] = ['Gasolina', 'Gasolina Aditivada']
 const RECENT = 3
@@ -16,19 +16,21 @@ function avgRecentPrice(fuelings: Fueling[], n = RECENT): { avg: number | null; 
 }
 
 /**
- * Sugere abastecer com etanol ou gasolina. Preenche os preços com a média
- * dos últimos 6 abastecimentos de cada combustível (editável). O ponto de
- * equilíbrio é personalizado pelo consumo real do veículo (km/l de cada
- * combustível); sem dados suficientes, usa a regra dos 70%.
+ * Sugere abastecer com etanol ou gasolina.
+ * - Preço: média dos últimos 3 abastecimentos de cada combustível (editável).
+ * - Consumo (km/l): média de TODO o histórico de tanques cheios (o mesmo valor
+ *   do card "Consumo médio por combustível"), para os dois cards sempre baterem
+ *   e evitar que um único tanque ruidoso distorça a recomendação.
+ * A decisão é pelo menor custo por km. Sem consumo dos dois combustíveis, usa
+ * a regra dos 70%.
  */
 export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
   const gasF = fuelings.filter((f) => GAS_TYPES.includes(f.fuelType))
   const ethF = fuelings.filter((f) => f.fuelType === 'Etanol')
 
-  // Consumo (km/l) dos últimos N tanques de cada combustível, usando a linha
-  // do tempo completa (atribuição correta mesmo alternando etanol/gasolina).
-  const kmLGas = recentConsumptionForFuels(fuelings, GAS_TYPES, RECENT)
-  const kmLEth = recentConsumptionForFuels(fuelings, ['Etanol'], RECENT)
+  // Consumo (km/l) por combustível — todo o histórico, igual ao card de médias.
+  const kmLGas = consumptionForFuels(fuelings, GAS_TYPES)
+  const kmLEth = consumptionForFuels(fuelings, ['Etanol'])
   const personalized = Boolean(kmLGas && kmLEth)
   // Ponto de equilíbrio = razão dos consumos (só para o texto explicativo).
   const breakEven = personalized ? kmLEth! / kmLGas! : 0.7
@@ -63,7 +65,7 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="row-between">
         <strong>⛽ Etanol ou gasolina?</strong>
-        <span className="badge">{personalized ? `últimos ${RECENT}` : 'regra 70%'}</span>
+        <span className="badge">{personalized ? 'seu consumo' : 'regra 70%'}</span>
       </div>
 
       <div className="field-row" style={{ marginTop: 12 }}>
@@ -109,7 +111,7 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
             O etanol compensa quando custa até <strong>{brl(threshold)}</strong> (≈{Math.round(breakEven * 100)}% do preço
             da gasolina).
             {personalized
-              ? ` Baseado no consumo dos últimos ${RECENT} abastecimentos: ${num(kmLGas!)} km/l na gasolina e ${num(kmLEth!)} km/l no etanol.`
+              ? ` Baseado no seu consumo médio: ${num(kmLGas!)} km/l na gasolina e ${num(kmLEth!)} km/l no etanol.`
               : ' Usando a regra dos 70% — registre 2+ abastecimentos de tanque cheio de cada tipo para personalizar.'}
           </p>
           {costGas && costEth && (
