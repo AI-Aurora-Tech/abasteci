@@ -238,6 +238,13 @@ button {
   padding: 4px 6px;
 }
 
+.install-guide {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2, transparent);
+}
+
 /* ---------- Cabeçalho de página ---------- */
 
 .page-head {

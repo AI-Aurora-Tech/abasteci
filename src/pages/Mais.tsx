@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui'
 import { useInstall } from '../pwa'
-import { IosInstallModal } from '../components/Install'
+import { InstallGuideModal } from '../components/Install'
 
 const baseItems = [
   { to: '/manutencoes', icon: '🔧', label: 'Manutenções' },
@@ -15,29 +15,38 @@ const baseItems = [
 export default function Mais() {
   const { user, signOut, billingEnabled, driver } = useStore()
   const { canInstall, ios, installed, promptInstall } = useInstall()
-  const [iosOpen, setIosOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const items = [
     ...(driver ? [{ to: '/receitas', icon: '💚', label: 'Receitas (motorista)' }] : []),
     ...baseItems,
     ...(billingEnabled ? [{ to: '/assinatura', icon: '⭐', label: 'Assinatura' }] : []),
   ]
 
-  const showInstall = !installed && (canInstall || ios)
+  const canQuickInstall = !installed && canInstall && !ios
 
   return (
     <>
       <PageHeader title="Mais" subtitle={user?.email ?? undefined} />
 
-      {showInstall && (
+      {canQuickInstall && (
         <button
           className="btn primary block"
-          style={{ marginBottom: 14 }}
-          onClick={() => (ios ? setIosOpen(true) : void promptInstall())}
+          style={{ marginBottom: 10 }}
+          onClick={() => void promptInstall()}
         >
           📲 Instalar aplicativo
         </button>
       )}
-      {iosOpen && <IosInstallModal onClose={() => setIosOpen(false)} />}
+      {!installed && (
+        <button
+          className="btn block"
+          style={{ marginBottom: 14 }}
+          onClick={() => setGuideOpen(true)}
+        >
+          📖 Como instalar no Android e iPhone
+        </button>
+      )}
+      {guideOpen && <InstallGuideModal onClose={() => setGuideOpen(false)} />}
 
       <div className="card" style={{ padding: '4px 16px' }}>
         <div className="menu-list">
