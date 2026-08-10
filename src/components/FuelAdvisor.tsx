@@ -3,7 +3,7 @@ import type { Fueling } from '../types'
 import { brl, num, recentConsumption } from '../utils'
 
 const GAS_TYPES = ['Gasolina', 'Gasolina Aditivada']
-const RECENT = 5
+const RECENT = 3
 
 /** Média do preço/litro dos últimos N abastecimentos de um combustível. */
 function avgRecentPrice(fuelings: Fueling[], n = RECENT): { avg: number | null; count: number } {
