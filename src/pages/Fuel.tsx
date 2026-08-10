@@ -5,7 +5,7 @@ import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../comp
 import { FuelAdvisor } from '../components/FuelAdvisor'
 import type { Fueling, FuelType, PaymentMethod } from '../types'
 import { PAYMENT_ICON } from '../constants'
-import { brl, currentOdometer, formatDate, num, todayISO } from '../utils'
+import { brl, consumptionByFuel, currentOdometer, formatDate, num, tankConsumptions, todayISO } from '../utils'
 import { locateStation, mapsLink } from '../geo'
 
 const FUEL_TYPES: FuelType[] = [
@@ -46,6 +46,15 @@ export default function Fuel() {
     [data.fuelings, vehicle?.id],
   )
 
+  // Consumo por tanque (km/l) mostrado no abastecimento que fecha o tanque,
+  // e a média separada por combustível (etanol × gasolina).
+  const tankMap = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof tankConsumptions>[number]>()
+    for (const t of tankConsumptions(fuelings)) m.set(t.closingId, t)
+    return m
+  }, [fuelings])
+  const byFuel = useMemo(() => consumptionByFuel(fuelings), [fuelings])
+
   if (!vehicle) {
     return (
       <>
@@ -70,6 +79,23 @@ export default function Fuel() {
       {(['Gasolina', 'Gasolina Aditivada', 'Etanol'].includes(vehicle.fuelType) ||
         fuelings.some((f) => ['Gasolina', 'Gasolina Aditivada', 'Etanol'].includes(f.fuelType))) && (
         <FuelAdvisor fuelings={fuelings} />
+      )}
+
+      {Object.keys(byFuel).length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <strong>📊 Consumo médio por combustível</strong>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 10 }}>
+            {(Object.entries(byFuel) as [string, number][]).map(([fuel, kmL]) => (
+              <div key={fuel}>
+                <div className="muted" style={{ fontSize: 12 }}>{fuel}</div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>{num(kmL)} km/l</div>
+              </div>
+            ))}
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Média dos tanques cheios de cada combustível.
+          </div>
+        </div>
       )}
 
       {fuelings.length === 0 ? (
@@ -100,6 +126,7 @@ export default function Fuel() {
                 `${f.odometer.toLocaleString('pt-BR')} km`,
                 `${num(f.liters)} L`,
                 `${num(f.pricePerLiter, 3)} R$/L`,
+                ...(tankMap.has(f.id) ? [`📊 ${num(tankMap.get(f.id)!.kmPerLiter)} km/l neste tanque`] : []),
                 ...(f.paymentMethod ? [`${PAYMENT_ICON[f.paymentMethod]} ${f.paymentMethod}`] : []),
               ]}
               amount={brl(f.total)}

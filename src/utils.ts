@@ -1,4 +1,4 @@
-import type { AppData, Fueling, Subscription, Vehicle } from './types'
+import type { AppData, Fueling, FuelType, Subscription, Vehicle } from './types'
 
 // ---------- Formatação ----------
 
@@ -81,6 +81,55 @@ export function recentConsumption(fuelings: Fueling[], segments = 5): number | n
 }
 
 /** Consumo do último trecho fechado (km/l), para exibir a "última medição". */
+/** Consumo (km/l) de um tanque específico já consumido. */
+export interface TankConsumption {
+  closingId: string // id do abastecimento que FECHA o tanque (o "próximo")
+  fuel: FuelType // combustível com que o tanque consumido foi abastecido
+  kmPerLiter: number
+  distance: number
+  liters: number
+}
+
+/**
+ * Consumo por tanque. Para cada par de abastecimentos de tanque cheio (A→B),
+ * o consumo do tanque = distância (odômetro B − A) ÷ litros do abastecimento
+ * B (o que reencheu o tanque). O resultado é atribuído ao combustível com que
+ * o tanque foi abastecido em A — assim, "tanque de etanol" e "tanque de
+ * gasolina" ficam separados. O valor aparece no abastecimento seguinte (B).
+ */
+export function tankConsumptions(fuelings: Fueling[]): TankConsumption[] {
+  const full = [...fuelings]
+    .filter((f) => f.fullTank)
+    .sort((a, b) => a.odometer - b.odometer)
+
+  const out: TankConsumption[] = []
+  for (let i = 1; i < full.length; i++) {
+    const a = full[i - 1]
+    const b = full[i]
+    const d = b.odometer - a.odometer
+    if (d > 0 && b.liters > 0) {
+      out.push({ closingId: b.id, fuel: a.fuelType, kmPerLiter: d / b.liters, distance: d, liters: b.liters })
+    }
+  }
+  return out
+}
+
+/** Média de consumo (km/l) por combustível, separando etanol e gasolina. */
+export function consumptionByFuel(fuelings: Fueling[]): Partial<Record<FuelType, number>> {
+  const agg: Partial<Record<FuelType, { dist: number; liters: number }>> = {}
+  for (const t of tankConsumptions(fuelings)) {
+    const g = (agg[t.fuel] ??= { dist: 0, liters: 0 })
+    g.dist += t.distance
+    g.liters += t.liters
+  }
+  const res: Partial<Record<FuelType, number>> = {}
+  for (const fuel of Object.keys(agg) as FuelType[]) {
+    const g = agg[fuel]!
+    if (g.liters > 0) res[fuel] = g.dist / g.liters
+  }
+  return res
+}
+
 export function lastConsumption(fuelings: Fueling[]): number | null {
   const full = [...fuelings]
     .filter((f) => f.fullTank)
