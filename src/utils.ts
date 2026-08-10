@@ -95,6 +95,23 @@ export function recentConsumption(fuelings: Fueling[], segments = 5): number | n
   return weighted(tankConsumptions(fuelings).slice(-segments))
 }
 
+/**
+ * Consumo médio (km/l) dos últimos N tanques de um conjunto de combustíveis.
+ * Usa a linha do tempo COMPLETA (via tankConsumptions) e só depois filtra pelo
+ * combustível — então a atribuição fica correta mesmo alternando etanol e
+ * gasolina. Ponderado pelos litros. Consistente com consumptionByFuel().
+ */
+export function recentConsumptionForFuels(
+  fuelings: Fueling[],
+  fuels: FuelType[],
+  n = 3,
+): number | null {
+  const tanks = tankConsumptions(fuelings)
+    .filter((t) => fuels.includes(t.fuel))
+    .slice(-n)
+  return weighted(tanks)
+}
+
 /** Consumo do último tanque fechado (km/l), para a "última medição". */
 export function lastConsumption(fuelings: Fueling[]): number | null {
   const tanks = tankConsumptions(fuelings)

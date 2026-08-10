@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Fueling } from '../types'
-import { brl, num, recentConsumption } from '../utils'
+import type { Fueling, FuelType } from '../types'
+import { brl, num, recentConsumptionForFuels } from '../utils'
 
-const GAS_TYPES = ['Gasolina', 'Gasolina Aditivada']
+const GAS_TYPES: FuelType[] = ['Gasolina', 'Gasolina Aditivada']
 const RECENT = 3
 
 /** Média do preço/litro dos últimos N abastecimentos de um combustível. */
@@ -25,12 +25,12 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
   const gasF = fuelings.filter((f) => GAS_TYPES.includes(f.fuelType))
   const ethF = fuelings.filter((f) => f.fuelType === 'Etanol')
 
-  // Consumo (km/l) pelos últimos 5 trechos de cada combustível.
-  const kmLGas = recentConsumption(gasF, RECENT)
-  const kmLEth = recentConsumption(ethF, RECENT)
+  // Consumo (km/l) dos últimos N tanques de cada combustível, usando a linha
+  // do tempo completa (atribuição correta mesmo alternando etanol/gasolina).
+  const kmLGas = recentConsumptionForFuels(fuelings, GAS_TYPES, RECENT)
+  const kmLEth = recentConsumptionForFuels(fuelings, ['Etanol'], RECENT)
   const personalized = Boolean(kmLGas && kmLEth)
-  // Ponto de equilíbrio = razão dos consumos. Comparar E/G a esse valor é o
-  // mesmo que comparar o custo por km (preço ÷ km/l) dos dois combustíveis.
+  // Ponto de equilíbrio = razão dos consumos (só para o texto explicativo).
   const breakEven = personalized ? kmLEth! / kmLGas! : 0.7
 
   const gasAvg = avgRecentPrice(gasF)
@@ -48,10 +48,14 @@ export function FuelAdvisor({ fuelings }: { fuelings: Fueling[] }) {
   const E = parseFloat(ethPrice.replace(',', '.')) || 0
   const ready = G > 0 && E > 0
 
-  const useEth = ready && E / G <= breakEven
-  const threshold = G * breakEven // preço máximo do etanol que ainda compensa
   const costGas = kmLGas ? G / kmLGas : null
   const costEth = kmLEth ? E / kmLEth : null
+  // Decide pelo MENOR custo por km (o número exibido abaixo). Sem consumo dos
+  // dois combustíveis, cai na regra dos 70%. Assim a recomendação nunca
+  // contradiz o custo/km mostrado.
+  const useEth =
+    ready && (costGas != null && costEth != null ? costEth <= costGas : E / G <= 0.7)
+  const threshold = G * breakEven // preço máximo do etanol que ainda compensa
 
   const hasAverages = Boolean(gasAvg.avg || ethAvg.avg)
 
