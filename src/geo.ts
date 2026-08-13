@@ -101,6 +101,64 @@ interface OverpassEl {
   tags?: Record<string, string>
 }
 
+/** Lista os postos de combustível próximos (raio ~600 m), ordenados por distância. */
+export async function nearbyFuelStations(coords: Coords, radius = 600): Promise<StationResult[]> {
+  const q = `[out:json][timeout:15];
+    (
+      node["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
+      way["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
+    );
+    out center 40;`
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(q),
+  })
+  if (!res.ok) throw new Error('Falha ao consultar postos próximos.')
+  const data = (await res.json()) as { elements?: OverpassEl[] }
+  const out: StationResult[] = []
+  const seen = new Set<string>()
+  for (const el of data.elements ?? []) {
+    const p = el.type === 'node' ? { lat: el.lat!, lng: el.lon! } : el.center ? { lat: el.center.lat, lng: el.center.lon } : null
+    if (!p) continue
+    const tags = el.tags ?? {}
+    const name = tags.name || tags.brand || tags.operator
+    if (!name) continue
+    const key = `${name.toLowerCase()}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ name, coords: p, distance: haversine(coords, p) })
+  }
+  out.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+  return out.slice(0, 8)
+}
+
+export interface LocatedStations {
+  coords: Coords
+  stations: StationResult[]
+  label: string | null // endereço aproximado, quando nenhum posto é encontrado
+}
+
+/** Pega o GPS e devolve os postos próximos (com fallback de endereço). */
+export async function locateNearbyStations(): Promise<LocatedStations> {
+  const coords = await getPosition()
+  let stations: StationResult[] = []
+  try {
+    stations = await nearbyFuelStations(coords)
+  } catch {
+    // ignora — cai no fallback de endereço
+  }
+  let label: string | null = null
+  if (!stations.length) {
+    try {
+      label = await reverseLabel(coords)
+    } catch {
+      // ignora
+    }
+  }
+  return { coords, stations, label }
+}
+
 /** Fallback: endereço aproximado (rua/bairro) via Nominatim. */
 async function reverseLabel(coords: Coords): Promise<string | null> {
   const url =

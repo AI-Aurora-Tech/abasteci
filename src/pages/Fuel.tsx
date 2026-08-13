@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelectedVehicle, useStore } from '../store'
 import { EmptyState, Modal, PageHeader, PaymentField, RecordCard } from '../components/ui'
@@ -6,7 +6,7 @@ import { FuelAdvisor } from '../components/FuelAdvisor'
 import type { Fueling, FuelType, PaymentMethod } from '../types'
 import { PAYMENT_ICON } from '../constants'
 import { brl, consumptionByFuel, currentOdometer, formatDate, num, tankConsumptions, todayISO } from '../utils'
-import { locateStation, mapsLink } from '../geo'
+import { locateNearbyStations, mapsLink, type StationResult } from '../geo'
 
 const FUEL_TYPES: FuelType[] = [
   'Gasolina',
@@ -159,19 +159,29 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
   const [longitude, setLongitude] = useState<number | undefined>(editing?.longitude)
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [geoMsg, setGeoMsg] = useState('')
+  const [stations, setStations] = useState<StationResult[]>([])
   const [lastEdited, setLastEdited] = useState<'liters' | 'price' | 'total' | null>(null)
 
   async function useLocation() {
     setGeoStatus('loading')
-    setGeoMsg('Obtendo localização…')
+    setGeoMsg('Localizando postos próximos…')
     try {
-      const result = await locateStation()
-      setLatitude(result.coords.lat)
-      setLongitude(result.coords.lng)
-      if (result.name) {
-        setStation(result.name)
-        const dist = result.distance != null ? ` (a ${Math.round(result.distance)} m)` : ''
-        setGeoMsg(`Posto encontrado: ${result.name}${dist}`)
+      const { coords, stations: found, label } = await locateNearbyStations()
+      setLatitude(coords.lat)
+      setLongitude(coords.lng)
+      setStations(found)
+      if (found.length) {
+        const nearest = found[0]
+        setStation(nearest.name) // seleciona automaticamente o mais próximo
+        const dist = nearest.distance != null ? ` (a ${Math.round(nearest.distance)} m)` : ''
+        setGeoMsg(
+          found.length > 1
+            ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
+            : `Posto encontrado: ${nearest.name}${dist}`,
+        )
+      } else if (label) {
+        setStation(label)
+        setGeoMsg('Não achei postos por perto — usei o endereço aproximado.')
       } else {
         setGeoMsg('Localização registrada. Não achei o nome do posto — preencha manualmente.')
       }
@@ -181,6 +191,19 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       setGeoMsg(err instanceof Error ? err.message : 'Falha ao obter a localização.')
     }
   }
+
+  function pickStation(s: StationResult) {
+    setStation(s.name)
+    setLatitude(s.coords.lat)
+    setLongitude(s.coords.lng)
+  }
+
+  // Ao abrir para um novo abastecimento, tenta localizar o posto sozinho —
+  // o usuário já está no posto. (Não faz em edição.)
+  useEffect(() => {
+    if (!editing) void useLocation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const L = parseFloat(liters.replace(',', '.')) || 0
   const P = parseFloat(pricePerLiter.replace(',', '.')) || 0
@@ -326,6 +349,35 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
                   </a>
                 </>
               )}
+            </div>
+          )}
+          {stations.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {stations.map((s, i) => {
+                const active = s.name === station
+                return (
+                  <button
+                    type="button"
+                    key={`${s.name}-${i}`}
+                    onClick={() => pickStation(s)}
+                    style={{
+                      border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
+                      background: active ? 'var(--primary-soft)' : 'var(--surface-2, transparent)',
+                      color: 'var(--text)',
+                      borderRadius: 999,
+                      padding: '6px 10px',
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {s.name}
+                    {s.distance != null && (
+                      <span className="muted" style={{ fontWeight: 400 }}> · {Math.round(s.distance)} m</span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

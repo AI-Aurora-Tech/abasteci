@@ -7,10 +7,13 @@ import {
   brl,
   costPerKm,
   currentOdometer,
+  km,
   monthLabel,
   num,
   sumByMonth,
+  tankConsumptions,
 } from '../utils'
+import type { FuelType } from '../types'
 
 type Range = 6 | 12 | 0 // 0 = tudo
 
@@ -48,6 +51,34 @@ export default function Reports() {
     const litersTotal = fuelings.reduce((s, f) => s + f.liters, 0)
     const avgPrice = litersTotal > 0 ? totalFuel / litersTotal : 0
 
+    // Relatório por combustível: litros, valor, distância percorrida e km/l.
+    const byFuel = new Map<FuelType, { liters: number; value: number }>()
+    for (const f of fuelings) {
+      const g = byFuel.get(f.fuelType) ?? { liters: 0, value: 0 }
+      g.liters += f.liters
+      g.value += f.total
+      byFuel.set(f.fuelType, g)
+    }
+    const dist = new Map<FuelType, { km: number; liters: number }>()
+    for (const t of tankConsumptions(fuelings)) {
+      const g = dist.get(t.fuel) ?? { km: 0, liters: 0 }
+      g.km += t.distance
+      g.liters += t.liters
+      dist.set(t.fuel, g)
+    }
+    const fuelRows = [...byFuel.entries()]
+      .map(([fuel, v]) => {
+        const d = dist.get(fuel)
+        return {
+          fuel,
+          liters: v.liters,
+          value: v.value,
+          km: d?.km ?? 0,
+          kmL: d && d.liters > 0 ? d.km / d.liters : null,
+        }
+      })
+      .sort((a, b) => b.value - a.value)
+
     return {
       combined,
       totalFuel,
@@ -56,6 +87,7 @@ export default function Reports() {
       grandTotal,
       avgPrice,
       litersTotal,
+      fuelRows,
       avg: averageConsumption(fuelings),
       cpk: costPerKm(data, vehicle),
       odo: currentOdometer(data, vehicle),
@@ -120,6 +152,47 @@ export default function Reports() {
             <CategoryCard label="💸 Despesas" value={r.totalExp} pct={share(r.totalExp)} color="#8b5cf6" />
             <CategoryCard label="🔧 Manutenção" value={r.totalMaint} pct={share(r.totalMaint)} color="#f97316" />
           </div>
+
+          {r.fuelRows.length > 0 && (
+            <>
+              <div className="section-title">Por combustível</div>
+              <div className="card table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Combustível</th>
+                      <th className="num">Litros</th>
+                      <th className="num">Valor total</th>
+                      <th className="num">Percorrido</th>
+                      <th className="num">Consumo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.fuelRows.map((row) => (
+                      <tr key={row.fuel}>
+                        <td>{row.fuel}</td>
+                        <td className="num">{num(row.liters)} L</td>
+                        <td className="num">{brl(row.value)}</td>
+                        <td className="num">{row.km > 0 ? km(row.km) : '—'}</td>
+                        <td className="num">{row.kmL ? `${num(row.kmL)} km/l` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>Total</td>
+                      <td className="num" style={{ fontWeight: 700 }}>{num(r.litersTotal)} L</td>
+                      <td className="num" style={{ fontWeight: 700 }}>{brl(r.totalFuel)}</td>
+                      <td className="num" style={{ fontWeight: 700 }}>
+                        {km(r.fuelRows.reduce((s, x) => s + x.km, 0))}
+                      </td>
+                      <td className="num" style={{ fontWeight: 700 }}>{r.avg ? `${num(r.avg)} km/l` : '—'}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
+          )}
 
           <div className="section-title">Detalhamento mensal</div>
           <div className="card table-wrap">
