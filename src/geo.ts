@@ -130,7 +130,7 @@ export async function nearbyFuelStations(coords: Coords, radius = 600): Promise<
     out.push({ name, coords: p, distance: haversine(coords, p) })
   }
   out.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-  return out.slice(0, 8)
+  return out.slice(0, 3) // os 3 postos mais próximos
 }
 
 export interface LocatedStations {

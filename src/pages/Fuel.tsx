@@ -351,7 +351,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
               )}
             </div>
           )}
-          {stations.length > 1 && (
+          {stations.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
               {stations.map((s, i) => {
                 const active = s.name === station
