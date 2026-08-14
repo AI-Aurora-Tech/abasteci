@@ -115,7 +115,9 @@ function parseStations(elements: OverpassEl[], coords: Coords): StationResult[] 
     const p = el.type === 'node' ? { lat: el.lat!, lng: el.lon! } : el.center ? { lat: el.center.lat, lng: el.center.lon } : null
     if (!p) continue
     const tags = el.tags ?? {}
-    const name = tags.name || tags.brand || tags.operator || 'Posto de combustível'
+    // Nome real do posto (marca/operador). Vazio quando o OSM não tem — nesse
+    // caso enriquecemos depois com o endereço (Nominatim).
+    const name = tags.name || tags.brand || tags.operator || tags['name:pt'] || ''
     const key = `${name.toLowerCase()}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`
     if (seen.has(key)) continue
     seen.add(key)
@@ -123,6 +125,22 @@ function parseStations(elements: OverpassEl[], coords: Coords): StationResult[] 
   }
   out.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
   return out
+}
+
+/**
+ * Preenche o nome dos postos que vieram sem nome do OSM usando o endereço
+ * aproximado (Nominatim, grátis e sem chave). Ex.: "Posto — Av. X, Bairro".
+ */
+async function enrichStationNames(stations: StationResult[]): Promise<void> {
+  for (const s of stations) {
+    if (s.name) continue
+    try {
+      const label = await reverseLabel(s.coords)
+      s.name = label ? `Posto — ${label}` : 'Posto de combustível'
+    } catch {
+      s.name = 'Posto de combustível'
+    }
+  }
 }
 
 /**
@@ -160,23 +178,87 @@ export async function nearbyFuelStations(coords: Coords, radius = 1000): Promise
   throw lastErr instanceof Error ? lastErr : new Error('Falha ao consultar postos próximos.')
 }
 
+// Chave opcional do Google. Se presente, usamos o Google Places (nomes bem
+// melhores). Sem ela, o app usa o OpenStreetMap (sem chave, sem custo).
+const GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim()
+
+/**
+ * Busca postos pelo Google Places API (New). Retorna nome + coordenadas dos 3
+ * mais próximos. Requer VITE_GOOGLE_MAPS_API_KEY (chave restrita por referer).
+ */
+export async function googleNearbyStations(coords: Coords, radius = 1500): Promise<StationResult[]> {
+  const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GOOGLE_KEY!,
+      'X-Goog-FieldMask': 'places.displayName,places.location',
+    },
+    body: JSON.stringify({
+      includedTypes: ['gas_station'],
+      maxResultCount: 3,
+      rankPreference: 'DISTANCE',
+      languageCode: 'pt-BR',
+      locationRestriction: {
+        circle: { center: { latitude: coords.lat, longitude: coords.lng }, radius },
+      },
+    }),
+  })
+  if (!res.ok) throw new Error(`Google Places HTTP ${res.status}`)
+  const data = (await res.json()) as {
+    places?: Array<{ displayName?: { text?: string }; location?: { latitude: number; longitude: number } }>
+  }
+  const out: StationResult[] = []
+  for (const p of data.places ?? []) {
+    const name = p.displayName?.text
+    const loc = p.location
+    if (!name || !loc) continue
+    const c = { lat: loc.latitude, lng: loc.longitude }
+    out.push({ name, coords: c, distance: haversine(coords, c) })
+  }
+  out.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+  return out.slice(0, 3)
+}
+
 export interface LocatedStations {
   coords: Coords
   stations: StationResult[]
   label: string | null // endereço aproximado, quando nenhum posto é encontrado
   lookupFailed: boolean // true = a busca de postos falhou (rede), não "sem postos"
+  source: 'google' | 'osm' | null
 }
 
-/** Pega o GPS e devolve os postos próximos (com fallback de endereço). */
+/** Pega o GPS e devolve os postos próximos (Google se houver chave, senão OSM). */
 export async function locateNearbyStations(): Promise<LocatedStations> {
   const coords = await getPosition()
   let stations: StationResult[] = []
   let lookupFailed = false
-  try {
-    stations = await nearbyFuelStations(coords)
-  } catch {
-    lookupFailed = true // a consulta caiu — não é "sem postos por perto"
+  let source: 'google' | 'osm' | null = null
+
+  // 1) Google Places (melhores nomes), se a chave estiver configurada.
+  if (GOOGLE_KEY) {
+    try {
+      stations = await googleNearbyStations(coords)
+      if (stations.length) source = 'google'
+    } catch {
+      // cai para o OpenStreetMap
+    }
   }
+
+  // 2) OpenStreetMap (sem chave) — fonte principal quando não há Google.
+  if (!stations.length) {
+    try {
+      stations = await nearbyFuelStations(coords)
+      if (stations.length) {
+        source = 'osm'
+        // Postos sem nome no OSM ganham o endereço aproximado.
+        await enrichStationNames(stations)
+      }
+    } catch {
+      lookupFailed = true // a consulta caiu — não é "sem postos por perto"
+    }
+  }
+
   let label: string | null = null
   if (!stations.length) {
     try {
@@ -185,7 +267,7 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
       // ignora
     }
   }
-  return { coords, stations, label, lookupFailed }
+  return { coords, stations, label, lookupFailed, source }
 }
 
 /** Fallback: endereço aproximado (rua/bairro) via Nominatim. */
