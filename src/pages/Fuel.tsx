@@ -166,7 +166,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
     setGeoStatus('loading')
     setGeoMsg('Localizando postos próximos…')
     try {
-      const { coords, stations: found, label } = await locateNearbyStations()
+      const { coords, stations: found, label, lookupFailed } = await locateNearbyStations()
       setLatitude(coords.lat)
       setLongitude(coords.lng)
       setStations(found)
@@ -179,13 +179,20 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
             ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
             : `Posto encontrado: ${nearest.name}${dist}`,
         )
+        setGeoStatus('ok')
+      } else if (lookupFailed) {
+        // A consulta de postos caiu (rede/servidor) — não é ausência de postos.
+        if (label) setStation(label)
+        setGeoMsg('Não consegui buscar os postos agora. Toque em 📍 para tentar de novo.')
+        setGeoStatus('error')
       } else if (label) {
         setStation(label)
-        setGeoMsg('Não achei postos por perto — usei o endereço aproximado.')
+        setGeoMsg('Não achei postos num raio de 1 km — usei o endereço aproximado.')
+        setGeoStatus('ok')
       } else {
         setGeoMsg('Localização registrada. Não achei o nome do posto — preencha manualmente.')
+        setGeoStatus('ok')
       }
-      setGeoStatus('ok')
     } catch (err) {
       setGeoStatus('error')
       setGeoMsg(err instanceof Error ? err.message : 'Falha ao obter a localização.')

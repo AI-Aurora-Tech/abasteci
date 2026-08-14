@@ -101,52 +101,81 @@ interface OverpassEl {
   tags?: Record<string, string>
 }
 
-/** Lista os postos de combustível próximos (raio ~600 m), ordenados por distância. */
-export async function nearbyFuelStations(coords: Coords, radius = 600): Promise<StationResult[]> {
-  const q = `[out:json][timeout:15];
-    (
-      node["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
-      way["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
-    );
-    out center 40;`
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(q),
-  })
-  if (!res.ok) throw new Error('Falha ao consultar postos próximos.')
-  const data = (await res.json()) as { elements?: OverpassEl[] }
+// Servidores públicos do Overpass (tenta em ordem; se um falhar, vai pro próximo).
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+]
+
+function parseStations(elements: OverpassEl[], coords: Coords): StationResult[] {
   const out: StationResult[] = []
   const seen = new Set<string>()
-  for (const el of data.elements ?? []) {
+  for (const el of elements) {
     const p = el.type === 'node' ? { lat: el.lat!, lng: el.lon! } : el.center ? { lat: el.center.lat, lng: el.center.lon } : null
     if (!p) continue
     const tags = el.tags ?? {}
-    const name = tags.name || tags.brand || tags.operator
-    if (!name) continue
+    const name = tags.name || tags.brand || tags.operator || 'Posto de combustível'
     const key = `${name.toLowerCase()}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push({ name, coords: p, distance: haversine(coords, p) })
   }
   out.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-  return out.slice(0, 3) // os 3 postos mais próximos
+  return out
+}
+
+/**
+ * Lista os 3 postos de combustível mais próximos (raio ~1 km). Tenta vários
+ * servidores Overpass; só lança erro se TODOS falharem (para diferenciar
+ * "sem postos por perto" de "consulta falhou"). Aceita postos sem nome.
+ */
+export async function nearbyFuelStations(coords: Coords, radius = 1000): Promise<StationResult[]> {
+  const q = `[out:json][timeout:20];
+    (
+      node["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
+      way["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
+    );
+    out center 60;`
+  let lastErr: unknown = null
+  for (const url of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(q),
+      })
+      if (!res.ok) {
+        lastErr = new Error(`Overpass HTTP ${res.status}`)
+        continue
+      }
+      const data = (await res.json()) as { elements?: OverpassEl[] }
+      // Sucesso na consulta (mesmo que vazio) — não tenta outros servidores.
+      return parseStations(data.elements ?? [], coords).slice(0, 3)
+    } catch (err) {
+      lastErr = err
+      // tenta o próximo servidor
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Falha ao consultar postos próximos.')
 }
 
 export interface LocatedStations {
   coords: Coords
   stations: StationResult[]
   label: string | null // endereço aproximado, quando nenhum posto é encontrado
+  lookupFailed: boolean // true = a busca de postos falhou (rede), não "sem postos"
 }
 
 /** Pega o GPS e devolve os postos próximos (com fallback de endereço). */
 export async function locateNearbyStations(): Promise<LocatedStations> {
   const coords = await getPosition()
   let stations: StationResult[] = []
+  let lookupFailed = false
   try {
     stations = await nearbyFuelStations(coords)
   } catch {
-    // ignora — cai no fallback de endereço
+    lookupFailed = true // a consulta caiu — não é "sem postos por perto"
   }
   let label: string | null = null
   if (!stations.length) {
@@ -156,7 +185,7 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
       // ignora
     }
   }
-  return { coords, stations, label }
+  return { coords, stations, label, lookupFailed }
 }
 
 /** Fallback: endereço aproximado (rua/bairro) via Nominatim. */
