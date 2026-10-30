@@ -52,13 +52,22 @@ Deno.serve(async (req) => {
     }
 
     const stations = results
-      .map((p) => ({
-        name: p.name ?? '',
-        lat: p.geocodes?.main?.latitude,
-        lng: p.geocodes?.main?.longitude,
-        distance: p.distance,
-      }))
+      .map((p) => {
+        const plat = p.geocodes?.main?.latitude
+        const plng = p.geocodes?.main?.longitude
+        return {
+          name: p.name ?? '',
+          lat: plat,
+          lng: plng,
+          // Distância sempre calculada no servidor (não depende do sort do FSQ).
+          distance:
+            typeof plat === 'number' && typeof plng === 'number'
+              ? Math.round(haversine(lat, lng, plat, plng))
+              : (p.distance ?? Number.MAX_SAFE_INTEGER),
+        }
+      })
       .filter((s) => s.name && typeof s.lat === 'number' && typeof s.lng === 'number')
+      .sort((a, b) => a.distance - b.distance) // ordena por distância ANTES de cortar
       .slice(0, 3)
 
     return json({ stations })
@@ -80,7 +89,7 @@ async function search(
   url.searchParams.set('ll', `${lat},${lng}`)
   url.searchParams.set('radius', String(radius))
   url.searchParams.set('sort', 'DISTANCE')
-  url.searchParams.set('limit', '10')
+  url.searchParams.set('limit', '30')
   url.searchParams.set('fields', 'name,geocodes,distance,categories')
   if (useCategory) url.searchParams.set('categories', GAS_CATEGORY)
 
@@ -99,6 +108,18 @@ function isGasStation(p: FsqPlace): boolean {
   return (p.categories ?? []).some(
     (c) => String(c.id) === GAS_CATEGORY || /gas|fuel|posto|gasolin|combust/i.test(c.name ?? ''),
   )
+}
+
+// Distância em metros entre dois pontos (Haversine).
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
 }
 
 function json(body: unknown, status = 200): Response {
