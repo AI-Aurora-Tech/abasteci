@@ -3,6 +3,8 @@
 // (Overpass API para postos; Nominatim como fallback de endereço).
 // Tudo roda no navegador do usuário e não exige chave de API.
 
+import { fetchNearbyStations } from './supabase'
+
 export interface Coords {
   lat: number
   lng: number
@@ -182,6 +184,23 @@ export async function nearbyFuelStations(coords: Coords, radius = 1000): Promise
 // melhores). Sem ela, o app usa o OpenStreetMap (sem chave, sem custo).
 const GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim()
 
+// Foursquare (grátis, sem cartão): a chave fica no servidor (Edge Function
+// nearby-stations). Ative definindo VITE_FOURSQUARE_ENABLED=true.
+const FOURSQUARE_ENABLED = import.meta.env.VITE_FOURSQUARE_ENABLED === 'true'
+
+/** Postos via Foursquare (Edge Function com a chave secreta no servidor). */
+export async function foursquareNearbyStations(coords: Coords): Promise<StationResult[]> {
+  const rows = await fetchNearbyStations(coords.lat, coords.lng)
+  return rows
+    .map((s) => ({
+      name: s.name,
+      coords: { lat: s.lat, lng: s.lng },
+      distance: s.distance ?? haversine(coords, { lat: s.lat, lng: s.lng }),
+    }))
+    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+    .slice(0, 3)
+}
+
 /**
  * Busca postos pelo Google Places API (New). Retorna nome + coordenadas dos 3
  * mais próximos. Requer VITE_GOOGLE_MAPS_API_KEY (chave restrita por referer).
@@ -225,18 +244,28 @@ export interface LocatedStations {
   stations: StationResult[]
   label: string | null // endereço aproximado, quando nenhum posto é encontrado
   lookupFailed: boolean // true = a busca de postos falhou (rede), não "sem postos"
-  source: 'google' | 'osm' | null
+  source: 'google' | 'foursquare' | 'osm' | null
 }
 
-/** Pega o GPS e devolve os postos próximos (Google se houver chave, senão OSM). */
+/** Pega o GPS e devolve os postos próximos (Foursquare/Google se houver, senão OSM). */
 export async function locateNearbyStations(): Promise<LocatedStations> {
   const coords = await getPosition()
   let stations: StationResult[] = []
   let lookupFailed = false
-  let source: 'google' | 'osm' | null = null
+  let source: LocatedStations['source'] = null
 
-  // 1) Google Places (melhores nomes), se a chave estiver configurada.
-  if (GOOGLE_KEY) {
+  // 1) Foursquare (grátis, chave no servidor), se habilitado.
+  if (FOURSQUARE_ENABLED) {
+    try {
+      stations = await foursquareNearbyStations(coords)
+      if (stations.length) source = 'foursquare'
+    } catch {
+      // cai para as próximas fontes
+    }
+  }
+
+  // 2) Google Places (melhores nomes), se a chave estiver configurada.
+  if (!stations.length && GOOGLE_KEY) {
     try {
       stations = await googleNearbyStations(coords)
       if (stations.length) source = 'google'
@@ -245,7 +274,7 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
     }
   }
 
-  // 2) OpenStreetMap (sem chave) — fonte principal quando não há Google.
+  // 3) OpenStreetMap (sem chave) — fonte principal quando não há as anteriores.
   if (!stations.length) {
     try {
       stations = await nearbyFuelStations(coords)

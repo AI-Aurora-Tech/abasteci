@@ -519,6 +519,21 @@ export async function reconcileSubscription(): Promise<Subscription | null> {
   }
 }
 
+export interface BackendStation {
+  name: string
+  lat: number
+  lng: number
+  distance?: number
+}
+
+/** Postos próximos via Edge Function (Foursquare), com a chave no servidor. */
+export async function fetchNearbyStations(lat: number, lng: number): Promise<BackendStation[]> {
+  const { data, error } = await client().functions.invoke('nearby-stations', { body: { lat, lng } })
+  if (error) throw error
+  const d = data as { stations?: BackendStation[] }
+  return d.stations ?? []
+}
+
 // ---------- Integração Uber ----------
 
 export async function uberConnectUrl(): Promise<string> {
