@@ -11,7 +11,13 @@
 // Deploy (com verificação de JWT — só usuários logados usam):
 //   supabase functions deploy nearby-stations
 
-import { corsHeaders } from '../_shared/cors.ts'
+// CORS embutido (sem import de ../_shared) para funcionar também ao publicar
+// pelo editor do painel do Supabase, que não inclui a pasta _shared.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
 
 const FSQ = 'https://api.foursquare.com/v3/places/search'
 const GAS_CATEGORY = '17069' // "Gas Station" na taxonomia do Foursquare v3
