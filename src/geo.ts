@@ -146,15 +146,18 @@ function parseStations(elements: OverpassEl[], coords: Coords): StationResult[] 
  * aproximado (Nominatim, grátis e sem chave). Ex.: "Posto — Av. X, Bairro".
  */
 async function enrichStationNames(stations: StationResult[]): Promise<void> {
-  for (const s of stations) {
-    if (s.name) continue
-    try {
-      const label = await reverseLabel(s.coords)
-      s.name = label ? `Posto — ${label}` : 'Posto de combustível'
-    } catch {
-      s.name = 'Posto de combustível'
-    }
-  }
+  // Em paralelo e com timeout — enriquecer o nome não pode atrasar a resposta.
+  await Promise.all(
+    stations.map(async (s) => {
+      if (s.name) return
+      try {
+        const label = await withTimeout(reverseLabel(s.coords), 4000)
+        s.name = label ? `Posto — ${label}` : 'Posto de combustível'
+      } catch {
+        s.name = 'Posto de combustível'
+      }
+    }),
+  )
 }
 
 /**
@@ -163,37 +166,49 @@ async function enrichStationNames(stations: StationResult[]): Promise<void> {
  * "sem postos por perto" de "consulta falhou"). Aceita postos sem nome.
  */
 export async function nearbyFuelStations(coords: Coords, radius = 1000): Promise<StationResult[]> {
-  const q = `[out:json][timeout:20];
+  const q = `[out:json][timeout:15];
     (
       node["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
       way["amenity"="fuel"](around:${radius},${coords.lat},${coords.lng});
     );
     out center 60;`
-  let lastErr: unknown = null
-  for (const url of OVERPASS_ENDPOINTS) {
-    try {
-      const res = await fetchWithTimeout(
-        url,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(q),
-        },
-        12000,
-      )
-      if (!res.ok) {
-        lastErr = new Error(`Overpass HTTP ${res.status}`)
-        continue
-      }
+  // Consulta TODOS os servidores em paralelo; o primeiro que responder vence.
+  // Muito mais rápido e tolerante a servidores lentos/fora do ar.
+  const attempts = OVERPASS_ENDPOINTS.map((url) =>
+    fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(q),
+      },
+      7000,
+    ).then(async (res) => {
+      if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`)
       const data = (await res.json()) as { elements?: OverpassEl[] }
-      // Sucesso na consulta (mesmo que vazio) — não tenta outros servidores.
       return parseStations(data.elements ?? [], coords).slice(0, 3)
-    } catch (err) {
-      lastErr = err
-      // tenta o próximo servidor
+    }),
+  )
+  // Promise.any: resolve com o primeiro sucesso; só rejeita se TODOS falharem.
+  return await firstSuccess(attempts)
+}
+
+/** Como Promise.any, mas compatível com targets antigos. */
+function firstSuccess<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let remaining = promises.length
+    if (remaining === 0) {
+      reject(new Error('Sem servidores para consultar.'))
+      return
     }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error('Falha ao consultar postos próximos.')
+    let firstErr: unknown = null
+    for (const p of promises) {
+      p.then(resolve).catch((e) => {
+        if (firstErr === null) firstErr = e
+        if (--remaining === 0) reject(firstErr ?? new Error('Todas as consultas falharam.'))
+      })
+    }
+  })
 }
 
 // Chave opcional do Google. Se presente, usamos o Google Places (nomes bem
@@ -207,7 +222,7 @@ const FOURSQUARE_ENABLED = import.meta.env.VITE_FOURSQUARE_ENABLED === 'true'
 /** Postos via Foursquare (Edge Function com a chave secreta no servidor). */
 export async function foursquareNearbyStations(coords: Coords): Promise<StationResult[]> {
   // Timeout: se o Foursquare não responder rápido, não trava — cai no OSM.
-  const rows = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 8000)
+  const rows = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 6000)
   return rows
     .map((s) => ({
       name: s.name,
