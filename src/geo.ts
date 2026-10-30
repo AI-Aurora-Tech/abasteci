@@ -108,7 +108,19 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ]
+
+/** fetch com timeout (AbortController) para não travar num servidor lento. */
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal })
+  } finally {
+    clearTimeout(t)
+  }
+}
 
 function parseStations(elements: OverpassEl[], coords: Coords): StationResult[] {
   const out: StationResult[] = []
@@ -160,11 +172,15 @@ export async function nearbyFuelStations(coords: Coords, radius = 1000): Promise
   let lastErr: unknown = null
   for (const url of OVERPASS_ENDPOINTS) {
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'data=' + encodeURIComponent(q),
-      })
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(q),
+        },
+        12000,
+      )
       if (!res.ok) {
         lastErr = new Error(`Overpass HTTP ${res.status}`)
         continue
