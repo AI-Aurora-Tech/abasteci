@@ -190,7 +190,8 @@ const FOURSQUARE_ENABLED = import.meta.env.VITE_FOURSQUARE_ENABLED === 'true'
 
 /** Postos via Foursquare (Edge Function com a chave secreta no servidor). */
 export async function foursquareNearbyStations(coords: Coords): Promise<StationResult[]> {
-  const rows = await fetchNearbyStations(coords.lat, coords.lng)
+  // Timeout: se o Foursquare não responder rápido, não trava — cai no OSM.
+  const rows = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 8000)
   return rows
     .map((s) => ({
       name: s.name,
@@ -199,6 +200,14 @@ export async function foursquareNearbyStations(coords: Coords): Promise<StationR
     }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
     .slice(0, 3)
+}
+
+/** Rejeita se a promise não resolver dentro de `ms` milissegundos. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
 }
 
 /**
