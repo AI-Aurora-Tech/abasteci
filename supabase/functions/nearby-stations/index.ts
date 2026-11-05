@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     if (key) {
       const t0 = Date.now()
       try {
-        const fsq = await foursquare(key, lat, lng, radius)
+        const fsq = await foursquare(key, lat, lng, radius, diag)
         diag.push(`srv-fsq: ${fsq.length} em ${Date.now() - t0}ms`)
         if (fsq.length) {
           stations = fsq
@@ -94,10 +94,10 @@ Deno.serve(async (req) => {
 })
 
 // ---------- Foursquare ----------
-async function foursquare(key: string, lat: number, lng: number, radius: number): Promise<Station[]> {
-  let results = await fsqSearch(key, lat, lng, radius, true)
+async function foursquare(key: string, lat: number, lng: number, radius: number, diag: string[]): Promise<Station[]> {
+  let results = await fsqSearch(key, lat, lng, radius, true, diag)
   if (!results.length) {
-    const all = await fsqSearch(key, lat, lng, radius, false)
+    const all = await fsqSearch(key, lat, lng, radius, false, diag)
     results = all.filter(isGasStation)
   }
   return results
@@ -132,8 +132,10 @@ async function fsqSearch(
   lng: number,
   radius: number,
   useCategory: boolean,
+  diag: string[],
 ): Promise<FsqPlace[]> {
   for (const prov of FSQ_PROVIDERS) {
+    const host = new URL(prov.base).host
     try {
       const url = new URL(prov.base)
       url.searchParams.set('ll', `${lat},${lng}`)
@@ -151,12 +153,13 @@ async function fsqSearch(
       }
       if (prov.version) headers['X-Places-Api-Version'] = prov.version
       const r = await fetch(url, { headers })
+      const data = (await r.json().catch(() => ({}))) as { results?: FsqPlace[] }
+      const n = data.results?.length ?? 0
+      diag.push(`  · ${host}${useCategory ? '?cat' : ''}: HTTP ${r.status}, ${n} res`)
       if (!r.ok) continue
-      const data = (await r.json()) as { results?: FsqPlace[] }
-      const results = data.results ?? []
-      if (results.length) return results
-    } catch {
-      // próximo provedor
+      if (n) return data.results!
+    } catch (e) {
+      diag.push(`  · ${host}: erro "${String(e)}"`)
     }
   }
   return []
@@ -194,7 +197,12 @@ async function overpass(lat: number, lng: number, radius: number): Promise<Stati
     try {
       const r = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          // Overpass recusa (403) requisições sem identificação.
+          'User-Agent': 'abasteci/1.0 (gestão de abastecimento; +https://abasteci.auroratech.app.br)',
+          Accept: 'application/json',
+        },
         body: 'data=' + encodeURIComponent(q),
         signal: ctrl.signal,
       })
