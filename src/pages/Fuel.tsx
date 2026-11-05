@@ -159,17 +159,21 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
   const [longitude, setLongitude] = useState<number | undefined>(editing?.longitude)
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [geoMsg, setGeoMsg] = useState('')
+  const [geoDiag, setGeoDiag] = useState<string[]>([])
   const [stations, setStations] = useState<StationResult[]>([])
   const [lastEdited, setLastEdited] = useState<'liters' | 'price' | 'total' | null>(null)
 
   async function useLocation() {
     setGeoStatus('loading')
     setGeoMsg('Localizando postos próximos…')
+    setGeoDiag([])
     try {
-      const { coords, stations: found, label, lookupFailed } = await locateNearbyStations()
+      const { coords, stations: found, label, lookupFailed, diag } = await locateNearbyStations()
       setLatitude(coords.lat)
       setLongitude(coords.lng)
       setStations(found)
+      // Mostra o diagnóstico só quando NÃO achou postos (para depurar).
+      setGeoDiag(found.length ? [] : diag)
       if (found.length) {
         const nearest = found[0]
         setStation(nearest.name) // seleciona automaticamente o mais próximo
@@ -195,6 +199,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       }
     } catch (err) {
       setGeoStatus('error')
+      setGeoDiag([])
       setGeoMsg(err instanceof Error ? err.message : 'Falha ao obter a localização.')
     }
   }
@@ -356,6 +361,23 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
                   </a>
                 </>
               )}
+            </div>
+          )}
+          {geoDiag.length > 0 && (
+            <div
+              className="geo-msg"
+              style={{
+                marginTop: 6,
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: 'var(--text-dim)',
+                background: 'var(--surface-2, rgba(0,0,0,.04))',
+                borderRadius: 8,
+                padding: '6px 8px',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              🔎 diagnóstico{'\n'}{geoDiag.join('\n')}
             </div>
           )}
           {stations.length > 0 && (

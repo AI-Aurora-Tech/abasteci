@@ -285,7 +285,11 @@ export interface LocatedStations {
   label: string | null // endereço aproximado, quando nenhum posto é encontrado
   lookupFailed: boolean // true = a busca de postos falhou (rede), não "sem postos"
   source: 'google' | 'foursquare' | 'osm' | null
+  diag: string[] // diagnóstico por fonte (para depurar na tela)
 }
+
+const errMsg = (e: unknown): string =>
+  e instanceof Error ? (e.name === 'AbortError' ? 'timeout' : e.message) : String(e)
 
 /** Pega o GPS e devolve os postos próximos (Foursquare/Google se houver, senão OSM). */
 export async function locateNearbyStations(): Promise<LocatedStations> {
@@ -293,37 +297,47 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
   let stations: StationResult[] = []
   let lookupFailed = false
   let source: LocatedStations['source'] = null
+  const diag: string[] = [`GPS ok (±${Math.round(coords.accuracy ?? 0)}m)`]
 
   // 1) Foursquare (grátis, chave no servidor), se habilitado.
   if (FOURSQUARE_ENABLED) {
+    const t0 = Date.now()
     try {
       stations = await foursquareNearbyStations(coords)
+      diag.push(`FSQ: ${stations.length} em ${Date.now() - t0}ms`)
       if (stations.length) source = 'foursquare'
-    } catch {
-      // cai para as próximas fontes
+    } catch (e) {
+      diag.push(`FSQ: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
     }
+  } else {
+    diag.push('FSQ: desligado')
   }
 
   // 2) Google Places (melhores nomes), se a chave estiver configurada.
   if (!stations.length && GOOGLE_KEY) {
+    const t0 = Date.now()
     try {
       stations = await googleNearbyStations(coords)
+      diag.push(`Google: ${stations.length} em ${Date.now() - t0}ms`)
       if (stations.length) source = 'google'
-    } catch {
-      // cai para o OpenStreetMap
+    } catch (e) {
+      diag.push(`Google: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
     }
   }
 
   // 3) OpenStreetMap (sem chave) — fonte principal quando não há as anteriores.
   if (!stations.length) {
+    const t0 = Date.now()
     try {
       stations = await nearbyFuelStations(coords)
+      diag.push(`OSM: ${stations.length} em ${Date.now() - t0}ms`)
       if (stations.length) {
         source = 'osm'
         // Postos sem nome no OSM ganham o endereço aproximado.
         await enrichStationNames(stations)
       }
-    } catch {
+    } catch (e) {
+      diag.push(`OSM: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
       lookupFailed = true // a consulta caiu — não é "sem postos por perto"
     }
   }
@@ -336,7 +350,7 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
       // ignora
     }
   }
-  return { coords, stations, label, lookupFailed, source }
+  return { coords, stations, label, lookupFailed, source, diag }
 }
 
 /** Fallback: endereço aproximado (rua/bairro) via Nominatim. */
