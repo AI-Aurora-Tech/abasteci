@@ -45,7 +45,25 @@ Deno.serve(async (req) => {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    const diag: string[] = ['fn v5 (geoapify primeiro)']
+    const diag: string[] = ['fn v6 (google/geoapify)']
+
+    // 1) Google Places primeiro — melhores nomes de postos. Requer
+    //    GOOGLE_PLACES_API_KEY (Google Cloud com faturamento ativo).
+    const googleKey = Deno.env.get('GOOGLE_PLACES_API_KEY')
+    if (googleKey) {
+      const t0 = Date.now()
+      try {
+        const g = await withTimeout(google(googleKey, lat, lng, radius, diag), 6000)
+        diag.push(`srv-google: ${g.length} em ${Date.now() - t0}ms`)
+        if (g.length) return json({ stations: g.slice(0, 5), source: 'google', diag })
+      } catch (e) {
+        diag.push(`srv-google: erro "${String(e)}" em ${Date.now() - t0}ms`)
+      }
+    } else {
+      diag.push('srv-google: sem chave')
+    }
+
+    // 2) Geoapify — rápido e confiável (grátis, sem cartão). Se achar, retorna.
     const geoKey = Deno.env.get('GEOAPIFY_API_KEY')
 
     // 1) Geoapify primeiro — rápido e confiável. Se achar, retorna já (não
@@ -103,6 +121,43 @@ Deno.serve(async (req) => {
     return json({ stations: [], error: String(err) })
   }
 })
+
+// ---------- Google Places (melhores nomes; requer faturamento no Google) ----------
+async function google(key: string, lat: number, lng: number, radius: number, diag: string[]): Promise<Station[]> {
+  const r = await fetchTimeout(
+    'https://places.googleapis.com/v1/places:searchNearby',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.displayName,places.location',
+      },
+      body: JSON.stringify({
+        includedTypes: ['gas_station'],
+        maxResultCount: 10,
+        rankPreference: 'DISTANCE',
+        languageCode: 'pt-BR',
+        locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius } },
+      }),
+    },
+    6000,
+  )
+  diag.push(`  · google: HTTP ${r.status}`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  const data = (await r.json()) as {
+    places?: Array<{ displayName?: { text?: string }; location?: { latitude?: number; longitude?: number } }>
+  }
+  const out: Station[] = []
+  for (const p of data.places ?? []) {
+    const name = p.displayName?.text
+    const loc = p.location
+    if (!name || typeof loc?.latitude !== 'number' || typeof loc?.longitude !== 'number') continue
+    out.push({ name, lat: loc.latitude, lng: loc.longitude, distance: Math.round(haversine(lat, lng, loc.latitude, loc.longitude)) })
+  }
+  out.sort((a, b) => a.distance - b.distance)
+  return out.slice(0, 5)
+}
 
 // ---------- Geoapify (grátis, sem cartão) ----------
 async function geoapify(key: string, lat: number, lng: number, radius: number, diag: string[]): Promise<Station[]> {
