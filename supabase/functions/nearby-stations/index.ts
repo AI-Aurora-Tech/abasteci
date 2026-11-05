@@ -6,7 +6,11 @@
 // Saída: { stations: [{ name, lat, lng, distance }] }  (até 3, por distância)
 //
 // Segredo necessário:
-//   FOURSQUARE_API_KEY  -> chave da API do Foursquare (Service/Legacy key)
+//   FOURSQUARE_API_KEY  -> chave da API do Foursquare
+//
+// Tenta a API NOVA (places-api.foursquare.com, auth Bearer) e, se não der,
+// a v3 (api.foursquare.com/v3, auth com a chave crua) — assim funciona
+// independentemente de qual versão a sua chave usa.
 //
 // Deploy (com verificação de JWT — só usuários logados usam):
 //   supabase functions deploy nearby-stations
@@ -19,14 +23,21 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const FSQ = 'https://api.foursquare.com/v3/places/search'
-const GAS_CATEGORY = '17069' // "Gas Station" na taxonomia do Foursquare v3
+const GAS_CATEGORY = '17069' // "Gas Station" na taxonomia do Foursquare
+
+// Provedores testados em ordem. Cada chave costuma funcionar em um deles.
+const PROVIDERS = [
+  { base: 'https://places-api.foursquare.com/places/search', bearer: true, version: '2025-06-17' },
+  { base: 'https://api.foursquare.com/v3/places/search', bearer: false, version: '' },
+]
 
 interface FsqPlace {
   name?: string
   distance?: number
+  latitude?: number
+  longitude?: number
   geocodes?: { main?: { latitude?: number; longitude?: number } }
-  categories?: Array<{ id?: number; name?: string }>
+  categories?: Array<{ id?: number; fsq_category_id?: string; name?: string }>
 }
 
 Deno.serve(async (req) => {
@@ -43,22 +54,29 @@ Deno.serve(async (req) => {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    // 1) tenta já filtrando por categoria "posto"
+    // 1) com categoria "posto"; 2) se vazio, sem categoria e filtra depois
     let results = await search(key, lat, lng, radius, true)
-    // 2) se vier vazio, busca sem filtro e seleciona por categoria/nome
     if (!results.length) {
       const all = await search(key, lat, lng, radius, false)
       results = all.filter(isGasStation)
     }
 
     const stations = results
-      .map((p) => ({
-        name: p.name ?? '',
-        lat: p.geocodes?.main?.latitude,
-        lng: p.geocodes?.main?.longitude,
-        distance: p.distance,
-      }))
+      .map((p) => {
+        const plat = p.latitude ?? p.geocodes?.main?.latitude
+        const plng = p.longitude ?? p.geocodes?.main?.longitude
+        return {
+          name: p.name ?? '',
+          lat: plat,
+          lng: plng,
+          distance:
+            typeof plat === 'number' && typeof plng === 'number'
+              ? Math.round(haversine(lat, lng, plat, plng))
+              : (p.distance ?? Number.MAX_SAFE_INTEGER),
+        }
+      })
       .filter((s) => s.name && typeof s.lat === 'number' && typeof s.lng === 'number')
+      .sort((a, b) => a.distance - b.distance) // ordena por distância ANTES de cortar
       .slice(0, 3)
 
     return json({ stations })
@@ -76,29 +94,56 @@ async function search(
   radius: number,
   useCategory: boolean,
 ): Promise<FsqPlace[]> {
-  const url = new URL(FSQ)
-  url.searchParams.set('ll', `${lat},${lng}`)
-  url.searchParams.set('radius', String(radius))
-  url.searchParams.set('sort', 'DISTANCE')
-  url.searchParams.set('limit', '10')
-  url.searchParams.set('fields', 'name,geocodes,distance,categories')
-  if (useCategory) url.searchParams.set('categories', GAS_CATEGORY)
+  for (const prov of PROVIDERS) {
+    try {
+      const url = new URL(prov.base)
+      url.searchParams.set('ll', `${lat},${lng}`)
+      url.searchParams.set('radius', String(radius))
+      url.searchParams.set('sort', 'DISTANCE')
+      url.searchParams.set('limit', '30')
+      // Campos pedidos: cobre nomes das duas APIs.
+      url.searchParams.set('fields', 'name,geocodes,latitude,longitude,distance,categories')
+      if (useCategory) {
+        url.searchParams.set('fsq_category_ids', GAS_CATEGORY) // API nova
+        url.searchParams.set('categories', GAS_CATEGORY) // v3 (a outra ignora)
+      }
+      const headers: Record<string, string> = {
+        Authorization: prov.bearer ? `Bearer ${key}` : key,
+        Accept: 'application/json',
+      }
+      if (prov.version) headers['X-Places-Api-Version'] = prov.version
 
-  const r = await fetch(url, {
-    headers: { Authorization: key, Accept: 'application/json' },
-  })
-  if (!r.ok) {
-    if (useCategory) return [] // deixa o fallback sem categoria tentar
-    throw new Error(`Foursquare HTTP ${r.status}`)
+      const r = await fetch(url, { headers })
+      if (!r.ok) continue // tenta o próximo provedor
+      const data = (await r.json()) as { results?: FsqPlace[] }
+      const results = data.results ?? []
+      if (results.length) return results
+    } catch {
+      // tenta o próximo provedor
+    }
   }
-  const data = (await r.json()) as { results?: FsqPlace[] }
-  return data.results ?? []
+  return []
 }
 
 function isGasStation(p: FsqPlace): boolean {
   return (p.categories ?? []).some(
-    (c) => String(c.id) === GAS_CATEGORY || /gas|fuel|posto|gasolin|combust/i.test(c.name ?? ''),
+    (c) =>
+      String(c.id) === GAS_CATEGORY ||
+      c.fsq_category_id === GAS_CATEGORY ||
+      /gas|fuel|posto|gasolin|combust/i.test(c.name ?? ''),
   )
+}
+
+// Distância em metros entre dois pontos (Haversine).
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
 }
 
 function json(body: unknown, status = 200): Response {
