@@ -48,28 +48,45 @@ Deno.serve(async (req) => {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    // 1) Foursquare (se a chave estiver configurada)
+    const diag: string[] = ['fn v2 (osm server-side)']
     let stations: Station[] = []
     let source: 'foursquare' | 'osm' | null = null
+
+    // 1) Foursquare (se a chave estiver configurada)
     const key = Deno.env.get('FOURSQUARE_API_KEY')
     if (key) {
-      const fsq = await foursquare(key, lat, lng, radius)
-      if (fsq.length) {
-        stations = fsq
-        source = 'foursquare'
+      const t0 = Date.now()
+      try {
+        const fsq = await foursquare(key, lat, lng, radius)
+        diag.push(`srv-fsq: ${fsq.length} em ${Date.now() - t0}ms`)
+        if (fsq.length) {
+          stations = fsq
+          source = 'foursquare'
+        }
+      } catch (e) {
+        diag.push(`srv-fsq: erro "${String(e)}" em ${Date.now() - t0}ms`)
       }
+    } else {
+      diag.push('srv-fsq: sem chave')
     }
 
     // 2) OpenStreetMap (Overpass) server-side
     if (!stations.length) {
-      stations = await overpass(lat, lng, radius)
-      if (stations.length) {
-        source = 'osm'
-        await enrichNames(stations)
+      const t0 = Date.now()
+      try {
+        const osm = await overpass(lat, lng, radius)
+        diag.push(`srv-osm: ${osm.length} em ${Date.now() - t0}ms`)
+        if (osm.length) {
+          stations = osm
+          source = 'osm'
+          await enrichNames(stations)
+        }
+      } catch (e) {
+        diag.push(`srv-osm: erro "${String(e)}" em ${Date.now() - t0}ms`)
       }
     }
 
-    return json({ stations: stations.slice(0, 3), source })
+    return json({ stations: stations.slice(0, 3), source, diag })
   } catch (err) {
     console.error(err)
     return json({ stations: [], error: String(err) })
@@ -170,14 +187,21 @@ async function overpass(lat: number, lng: number, radius: number): Promise<Stati
       way["amenity"="fuel"](around:${radius},${lat},${lng});
     );
     out center 60;`
+  let lastErr: unknown = null
   for (const url of OVERPASS) {
+    const ctrl = new AbortController()
+    const tm = setTimeout(() => ctrl.abort(), 7000)
     try {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(q),
+        signal: ctrl.signal,
       })
-      if (!r.ok) continue
+      if (!r.ok) {
+        lastErr = new Error(`HTTP ${r.status}`)
+        continue
+      }
       const data = (await r.json()) as { elements?: OverpassEl[] }
       const out: Station[] = []
       const seen = new Set<string>()
@@ -192,12 +216,14 @@ async function overpass(lat: number, lng: number, radius: number): Promise<Stati
         out.push({ name, lat: p.lat, lng: p.lng, distance: Math.round(haversine(lat, lng, p.lat, p.lng)) })
       }
       out.sort((a, b) => a.distance - b.distance)
-      return out.slice(0, 3)
-    } catch {
-      // próximo servidor
+      return out.slice(0, 3) // sucesso (mesmo que vazio)
+    } catch (e) {
+      lastErr = (e as Error)?.name === 'AbortError' ? new Error('timeout') : e
+    } finally {
+      clearTimeout(tm)
     }
   }
-  return []
+  throw lastErr instanceof Error ? lastErr : new Error('Overpass indisponível')
 }
 
 // Preenche nomes vazios com o endereço (Nominatim). Server-side pode mandar

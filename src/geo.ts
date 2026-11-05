@@ -222,10 +222,12 @@ const GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefin
 const BACKEND_ENABLED = import.meta.env.VITE_STATIONS_BACKEND !== 'false'
 
 /** Postos via Edge Function (Foursquare/Overpass no servidor, chave secreta). */
-export async function backendNearbyStations(coords: Coords): Promise<StationResult[]> {
+export async function backendNearbyStations(
+  coords: Coords,
+): Promise<{ stations: StationResult[]; serverDiag: string[] }> {
   // Timeout maior: a função pode consultar Foursquare e depois Overpass.
-  const rows = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 12000)
-  return rows
+  const { stations, diag } = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 14000)
+  const mapped = stations
     .map((s) => ({
       name: s.name,
       coords: { lat: s.lat, lng: s.lng },
@@ -233,6 +235,7 @@ export async function backendNearbyStations(coords: Coords): Promise<StationResu
     }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
     .slice(0, 3)
+  return { stations: mapped, serverDiag: diag }
 }
 
 /** Rejeita se a promise não resolver dentro de `ms` milissegundos. */
@@ -306,8 +309,10 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
   if (BACKEND_ENABLED) {
     const t0 = Date.now()
     try {
-      stations = await backendNearbyStations(coords)
+      const r = await backendNearbyStations(coords)
+      stations = r.stations
       diag.push(`servidor: ${stations.length} em ${Date.now() - t0}ms`)
+      for (const d of r.serverDiag) diag.push(`  · ${d}`)
       if (stations.length) source = 'foursquare'
     } catch (e) {
       diag.push(`servidor: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)

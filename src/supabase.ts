@@ -526,12 +526,15 @@ export interface BackendStation {
   distance?: number
 }
 
-/** Postos próximos via Edge Function (Foursquare), com a chave no servidor. */
-export async function fetchNearbyStations(lat: number, lng: number): Promise<BackendStation[]> {
+/** Postos próximos via Edge Function (Foursquare/OSM no servidor). */
+export async function fetchNearbyStations(
+  lat: number,
+  lng: number,
+): Promise<{ stations: BackendStation[]; diag: string[] }> {
   const { data, error } = await client().functions.invoke('nearby-stations', { body: { lat, lng } })
   if (error) throw error
-  const d = data as { stations?: BackendStation[] }
-  return d.stations ?? []
+  const d = data as { stations?: BackendStation[]; diag?: string[] }
+  return { stations: d.stations ?? [], diag: d.diag ?? [] }
 }
 
 // ---------- Integração Uber ----------
