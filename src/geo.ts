@@ -215,22 +215,27 @@ function firstSuccess<T>(promises: Promise<T>[]): Promise<T> {
 // melhores). Sem ela, o app usa o OpenStreetMap (sem chave, sem custo).
 const GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim()
 
-// Foursquare (grátis, sem cartão): a chave fica no servidor (Edge Function
-// nearby-stations). Ative definindo VITE_FOURSQUARE_ENABLED=true.
-const FOURSQUARE_ENABLED = import.meta.env.VITE_FOURSQUARE_ENABLED === 'true'
+// Busca pelo SERVIDOR (Edge Function nearby-stations): Foursquare + Overpass
+// server-side. É a fonte primária porque evita bloqueios de CORS/rede que o
+// navegador sofre ao chamar Overpass/Foursquare direto. Desligue com
+// VITE_STATIONS_BACKEND=false (não recomendado).
+const BACKEND_ENABLED = import.meta.env.VITE_STATIONS_BACKEND !== 'false'
 
-/** Postos via Foursquare (Edge Function com a chave secreta no servidor). */
-export async function foursquareNearbyStations(coords: Coords): Promise<StationResult[]> {
-  // Timeout: se o Foursquare não responder rápido, não trava — cai no OSM.
-  const rows = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 6000)
-  return rows
+/** Postos via Edge Function (Foursquare/Overpass no servidor, chave secreta). */
+export async function backendNearbyStations(
+  coords: Coords,
+): Promise<{ stations: StationResult[]; serverDiag: string[] }> {
+  // Timeout maior: a função pode consultar Foursquare e depois Overpass.
+  const { stations, diag } = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 18000)
+  const mapped = stations
     .map((s) => ({
       name: s.name,
       coords: { lat: s.lat, lng: s.lng },
       distance: s.distance ?? haversine(coords, { lat: s.lat, lng: s.lng }),
     }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-    .slice(0, 3)
+    .slice(0, 5)
+  return { stations: mapped, serverDiag: diag }
 }
 
 /** Rejeita se a promise não resolver dentro de `ms` milissegundos. */
@@ -285,7 +290,11 @@ export interface LocatedStations {
   label: string | null // endereço aproximado, quando nenhum posto é encontrado
   lookupFailed: boolean // true = a busca de postos falhou (rede), não "sem postos"
   source: 'google' | 'foursquare' | 'osm' | null
+  diag: string[] // diagnóstico por fonte (para depurar na tela)
 }
+
+const errMsg = (e: unknown): string =>
+  e instanceof Error ? (e.name === 'AbortError' ? 'timeout' : e.message) : String(e)
 
 /** Pega o GPS e devolve os postos próximos (Foursquare/Google se houver, senão OSM). */
 export async function locateNearbyStations(): Promise<LocatedStations> {
@@ -293,37 +302,49 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
   let stations: StationResult[] = []
   let lookupFailed = false
   let source: LocatedStations['source'] = null
+  const diag: string[] = [`GPS ok (±${Math.round(coords.accuracy ?? 0)}m)`]
 
-  // 1) Foursquare (grátis, chave no servidor), se habilitado.
-  if (FOURSQUARE_ENABLED) {
+  // 1) Backend (Edge Function): Foursquare + Overpass server-side. Primária —
+  // evita bloqueio de CORS/rede do navegador (o browser só fala com o Supabase).
+  if (BACKEND_ENABLED) {
+    const t0 = Date.now()
     try {
-      stations = await foursquareNearbyStations(coords)
+      const r = await backendNearbyStations(coords)
+      stations = r.stations
+      diag.push(`servidor: ${stations.length} em ${Date.now() - t0}ms`)
+      for (const d of r.serverDiag) diag.push(`  · ${d}`)
       if (stations.length) source = 'foursquare'
-    } catch {
-      // cai para as próximas fontes
+    } catch (e) {
+      diag.push(`servidor: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
     }
+  } else {
+    diag.push('servidor: desligado')
   }
 
   // 2) Google Places (melhores nomes), se a chave estiver configurada.
   if (!stations.length && GOOGLE_KEY) {
+    const t0 = Date.now()
     try {
       stations = await googleNearbyStations(coords)
+      diag.push(`Google: ${stations.length} em ${Date.now() - t0}ms`)
       if (stations.length) source = 'google'
-    } catch {
-      // cai para o OpenStreetMap
+    } catch (e) {
+      diag.push(`Google: erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
     }
   }
 
-  // 3) OpenStreetMap (sem chave) — fonte principal quando não há as anteriores.
+  // 3) OpenStreetMap no NAVEGADOR — último recurso (pode falhar por CORS/rede).
   if (!stations.length) {
+    const t0 = Date.now()
     try {
       stations = await nearbyFuelStations(coords)
+      diag.push(`OSM(navegador): ${stations.length} em ${Date.now() - t0}ms`)
       if (stations.length) {
         source = 'osm'
-        // Postos sem nome no OSM ganham o endereço aproximado.
         await enrichStationNames(stations)
       }
-    } catch {
+    } catch (e) {
+      diag.push(`OSM(navegador): erro "${errMsg(e)}" em ${Date.now() - t0}ms`)
       lookupFailed = true // a consulta caiu — não é "sem postos por perto"
     }
   }
@@ -336,7 +357,7 @@ export async function locateNearbyStations(): Promise<LocatedStations> {
       // ignora
     }
   }
-  return { coords, stations, label, lookupFailed, source }
+  return { coords, stations, label, lookupFailed, source, diag }
 }
 
 /** Fallback: endereço aproximado (rua/bairro) via Nominatim. */

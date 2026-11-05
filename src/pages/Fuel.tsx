@@ -159,26 +159,39 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
   const [longitude, setLongitude] = useState<number | undefined>(editing?.longitude)
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [geoMsg, setGeoMsg] = useState('')
+  const [geoDiag, setGeoDiag] = useState<string[]>([])
   const [stations, setStations] = useState<StationResult[]>([])
   const [lastEdited, setLastEdited] = useState<'liters' | 'price' | 'total' | null>(null)
 
   async function useLocation() {
     setGeoStatus('loading')
     setGeoMsg('Localizando postos próximos…')
+    setGeoDiag([])
     try {
-      const { coords, stations: found, label, lookupFailed } = await locateNearbyStations()
+      const { coords, stations: found, label, lookupFailed, diag } = await locateNearbyStations()
       setLatitude(coords.lat)
       setLongitude(coords.lng)
       setStations(found)
+      // Diagnóstico aparece só quando NÃO encontra postos (uso normal fica limpo).
+      setGeoDiag(found.length ? [] : diag)
       if (found.length) {
         const nearest = found[0]
-        setStation(nearest.name) // seleciona automaticamente o mais próximo
+        const near = nearest.distance != null && nearest.distance <= 250
         const dist = nearest.distance != null ? ` (a ${Math.round(nearest.distance)} m)` : ''
-        setGeoMsg(
-          found.length > 1
-            ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
-            : `Posto encontrado: ${nearest.name}${dist}`,
-        )
+        if (near) {
+          setStation(nearest.name) // provavelmente você está nele
+          setGeoMsg(
+            found.length > 1
+              ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
+              : `Posto encontrado: ${nearest.name}${dist}`,
+          )
+        } else {
+          // Mais próximo está longe — pode não ser o seu posto. Não preenche.
+          setGeoMsg(
+            `O posto mapeado mais perto está a ${Math.round(nearest.distance!)} m. ` +
+              `Toque no seu abaixo ou digite o nome.`,
+          )
+        }
         setGeoStatus('ok')
       } else if (lookupFailed) {
         // A consulta de postos caiu (rede/servidor) — não é ausência de postos.
@@ -195,6 +208,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       }
     } catch (err) {
       setGeoStatus('error')
+      setGeoDiag([])
       setGeoMsg(err instanceof Error ? err.message : 'Falha ao obter a localização.')
     }
   }
@@ -356,6 +370,23 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
                   </a>
                 </>
               )}
+            </div>
+          )}
+          {geoDiag.length > 0 && (
+            <div
+              className="geo-msg"
+              style={{
+                marginTop: 6,
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: 'var(--text-dim)',
+                background: 'var(--surface-2, rgba(0,0,0,.04))',
+                borderRadius: 8,
+                padding: '6px 8px',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              🔎 diagnóstico{'\n'}{geoDiag.join('\n')}
             </div>
           )}
           {stations.length > 0 && (
