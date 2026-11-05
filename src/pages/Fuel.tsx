@@ -172,8 +172,8 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       setLatitude(coords.lat)
       setLongitude(coords.lng)
       setStations(found)
-      // Mostra o diagnóstico só quando NÃO achou postos (para depurar).
-      setGeoDiag(found.length ? [] : diag)
+      // Mostra o diagnóstico sempre (fase de depuração — revela a fonte).
+      setGeoDiag(diag)
       if (found.length) {
         const nearest = found[0]
         setStation(nearest.name) // seleciona automaticamente o mais próximo
