@@ -1,16 +1,12 @@
 // Edge Function: nearby-stations
-// Busca os postos de combustível mais próximos PELO SERVIDOR. Isso evita os
-// bloqueios de CORS/rede que o navegador do usuário sofre ao chamar Overpass
-// ou Foursquare direto — aqui o app só fala com o Supabase.
-//
-// Ordem: Foursquare (se houver chave) -> OpenStreetMap (Overpass) -> nomes
-// via Nominatim para postos sem nome. Sempre retorna os 3 mais próximos.
+// Busca os postos de combustível mais próximos PELO SERVIDOR (evita bloqueios
+// de CORS/rede do navegador). Foursquare e OpenStreetMap (Overpass) rodam EM
+// PARALELO e com tempo limitado, para responder rápido.
 //
 // Entrada (POST JSON): { lat, lng, radius? }
-// Saída: { stations: [{ name, lat, lng, distance }], source }
+// Saída: { stations: [{ name, lat, lng, distance }], source, diag }
 //
 // Segredo OPCIONAL: FOURSQUARE_API_KEY (sem ela, usa só o OpenStreetMap).
-//
 // Deploy: supabase functions deploy nearby-stations
 
 const corsHeaders = {
@@ -19,7 +15,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const GAS_CATEGORY = '17069' // "Gas Station" na taxonomia do Foursquare
+const UA = 'abasteci/1.0 (gestão de abastecimento; +https://abasteci.auroratech.app.br)'
+const GAS_CATEGORY = '17069'
 const FSQ_PROVIDERS = [
   { base: 'https://places-api.foursquare.com/places/search', bearer: true, version: '2025-06-17' },
   { base: 'https://api.foursquare.com/v3/places/search', bearer: false, version: '' },
@@ -48,45 +45,44 @@ Deno.serve(async (req) => {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    const diag: string[] = ['fn v2 (osm server-side)']
-    let stations: Station[] = []
-    let source: 'foursquare' | 'osm' | null = null
-
-    // 1) Foursquare (se a chave estiver configurada)
+    const diag: string[] = ['fn v3 (paralelo)']
     const key = Deno.env.get('FOURSQUARE_API_KEY')
-    if (key) {
-      const t0 = Date.now()
-      try {
-        const fsq = await foursquare(key, lat, lng, radius, diag)
-        diag.push(`srv-fsq: ${fsq.length} em ${Date.now() - t0}ms`)
-        if (fsq.length) {
-          stations = fsq
-          source = 'foursquare'
-        }
-      } catch (e) {
-        diag.push(`srv-fsq: erro "${String(e)}" em ${Date.now() - t0}ms`)
-      }
-    } else {
-      diag.push('srv-fsq: sem chave')
-    }
 
-    // 2) OpenStreetMap (Overpass) server-side
-    if (!stations.length) {
-      const t0 = Date.now()
-      try {
-        const osm = await overpass(lat, lng, radius)
-        diag.push(`srv-osm: ${osm.length} em ${Date.now() - t0}ms`)
-        if (osm.length) {
-          stations = osm
-          source = 'osm'
-          await enrichNames(stations)
-        }
-      } catch (e) {
-        diag.push(`srv-osm: erro "${String(e)}" em ${Date.now() - t0}ms`)
-      }
-    }
+    let fsq: Station[] = []
+    let osm: Station[] = []
 
-    return json({ stations: stations.slice(0, 3), source, diag })
+    // Foursquare e Overpass EM PARALELO (cada um com tempo limitado).
+    await Promise.all([
+      (async () => {
+        if (!key) {
+          diag.push('srv-fsq: sem chave')
+          return
+        }
+        const t0 = Date.now()
+        try {
+          fsq = await withTimeout(foursquare(key, lat, lng, radius, diag), 6000)
+          diag.push(`srv-fsq: ${fsq.length} em ${Date.now() - t0}ms`)
+        } catch (e) {
+          diag.push(`srv-fsq: erro "${String(e)}" em ${Date.now() - t0}ms`)
+        }
+      })(),
+      (async () => {
+        const t0 = Date.now()
+        try {
+          osm = await overpass(lat, lng, radius)
+          diag.push(`srv-osm: ${osm.length} em ${Date.now() - t0}ms`)
+        } catch (e) {
+          diag.push(`srv-osm: erro "${String(e)}" em ${Date.now() - t0}ms`)
+        }
+      })(),
+    ])
+
+    let stations = fsq.length ? fsq : osm
+    const source = fsq.length ? 'foursquare' : osm.length ? 'osm' : null
+    if (source === 'osm') await enrichNames(stations)
+    stations = stations.slice(0, 3)
+
+    return json({ stations, source, diag })
   } catch (err) {
     console.error(err)
     return json({ stations: [], error: String(err) })
@@ -152,7 +148,7 @@ async function fsqSearch(
         Accept: 'application/json',
       }
       if (prov.version) headers['X-Places-Api-Version'] = prov.version
-      const r = await fetch(url, { headers })
+      const r = await fetchTimeout(url.toString(), { headers }, 5000)
       const data = (await r.json().catch(() => ({}))) as { results?: FsqPlace[] }
       const n = data.results?.length ?? 0
       diag.push(`  · ${host}${useCategory ? '?cat' : ''}: HTTP ${r.status}, ${n} res`)
@@ -184,65 +180,60 @@ interface OverpassEl {
 }
 
 async function overpass(lat: number, lng: number, radius: number): Promise<Station[]> {
-  const q = `[out:json][timeout:15];
+  const q = `[out:json][timeout:12];
     (
       node["amenity"="fuel"](around:${radius},${lat},${lng});
       way["amenity"="fuel"](around:${radius},${lat},${lng});
     );
     out center 60;`
-  let lastErr: unknown = null
-  for (const url of OVERPASS) {
-    const ctrl = new AbortController()
-    const tm = setTimeout(() => ctrl.abort(), 7000)
-    try {
-      const r = await fetch(url, {
+  // Todos os servidores EM PARALELO; o primeiro que responder vence.
+  const attempts = OVERPASS.map((url) =>
+    fetchTimeout(
+      url,
+      {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          // Overpass recusa (403) requisições sem identificação.
-          'User-Agent': 'abasteci/1.0 (gestão de abastecimento; +https://abasteci.auroratech.app.br)',
-          Accept: 'application/json',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA, Accept: 'application/json' },
         body: 'data=' + encodeURIComponent(q),
-        signal: ctrl.signal,
-      })
-      if (!r.ok) {
-        lastErr = new Error(`HTTP ${r.status}`)
-        continue
-      }
+      },
+      9000,
+    ).then(async (r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = (await r.json()) as { elements?: OverpassEl[] }
-      const out: Station[] = []
-      const seen = new Set<string>()
-      for (const el of data.elements ?? []) {
-        const p = el.type === 'node' ? { lat: el.lat!, lng: el.lon! } : el.center ? { lat: el.center.lat, lng: el.center.lon } : null
-        if (!p) continue
-        const tags = el.tags ?? {}
-        const name = tags.name || tags.brand || tags.operator || tags['name:pt'] || ''
-        const kk = `${name.toLowerCase()}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`
-        if (seen.has(kk)) continue
-        seen.add(kk)
-        out.push({ name, lat: p.lat, lng: p.lng, distance: Math.round(haversine(lat, lng, p.lat, p.lng)) })
-      }
-      out.sort((a, b) => a.distance - b.distance)
-      return out.slice(0, 3) // sucesso (mesmo que vazio)
-    } catch (e) {
-      lastErr = (e as Error)?.name === 'AbortError' ? new Error('timeout') : e
-    } finally {
-      clearTimeout(tm)
-    }
+      return parseOsm(data.elements ?? [], lat, lng)
+    }),
+  )
+  try {
+    return await Promise.any(attempts)
+  } catch (e) {
+    const errs = (e as AggregateError).errors?.map((x) => (x as Error)?.message || String(x)).join(', ')
+    throw new Error(errs || 'Overpass indisponível')
   }
-  throw lastErr instanceof Error ? lastErr : new Error('Overpass indisponível')
 }
 
-// Preenche nomes vazios com o endereço (Nominatim). Server-side pode mandar
-// User-Agent, o que o navegador não pode.
+function parseOsm(elements: OverpassEl[], lat: number, lng: number): Station[] {
+  const out: Station[] = []
+  const seen = new Set<string>()
+  for (const el of elements) {
+    const p = el.type === 'node' ? { lat: el.lat!, lng: el.lon! } : el.center ? { lat: el.center.lat, lng: el.center.lon } : null
+    if (!p) continue
+    const tags = el.tags ?? {}
+    const name = tags.name || tags.brand || tags.operator || tags['name:pt'] || ''
+    const kk = `${name.toLowerCase()}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`
+    if (seen.has(kk)) continue
+    seen.add(kk)
+    out.push({ name, lat: p.lat, lng: p.lng, distance: Math.round(haversine(lat, lng, p.lat, p.lng)) })
+  }
+  out.sort((a, b) => a.distance - b.distance)
+  return out.slice(0, 3)
+}
+
 async function enrichNames(stations: Station[]): Promise<void> {
   await Promise.all(
     stations.map(async (s) => {
       if (s.name) return
       try {
         const u = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&addressdetails=1&lat=${s.lat}&lon=${s.lng}`
-        const r = await fetch(u, { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'abasteci/1.0 (postos)' } })
+        const r = await fetchTimeout(u, { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': UA } }, 4000)
         if (r.ok) {
           const d = (await r.json()) as { address?: Record<string, string> }
           const a = d.address ?? {}
@@ -260,6 +251,25 @@ async function enrichNames(stations: Station[]): Promise<void> {
 }
 
 // ---------- utils ----------
+async function fetchTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController()
+  const tm = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal })
+  } catch (e) {
+    throw (e as Error)?.name === 'AbortError' ? new Error('timeout') : e
+  } finally {
+    clearTimeout(tm)
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
   const toRad = (d: number) => (d * Math.PI) / 180

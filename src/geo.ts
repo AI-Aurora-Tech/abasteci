@@ -226,7 +226,7 @@ export async function backendNearbyStations(
   coords: Coords,
 ): Promise<{ stations: StationResult[]; serverDiag: string[] }> {
   // Timeout maior: a função pode consultar Foursquare e depois Overpass.
-  const { stations, diag } = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 14000)
+  const { stations, diag } = await withTimeout(fetchNearbyStations(coords.lat, coords.lng), 18000)
   const mapped = stations
     .map((s) => ({
       name: s.name,
