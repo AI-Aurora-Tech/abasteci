@@ -176,13 +176,22 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
       setGeoDiag(diag)
       if (found.length) {
         const nearest = found[0]
-        setStation(nearest.name) // seleciona automaticamente o mais próximo
+        const near = nearest.distance != null && nearest.distance <= 250
         const dist = nearest.distance != null ? ` (a ${Math.round(nearest.distance)} m)` : ''
-        setGeoMsg(
-          found.length > 1
-            ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
-            : `Posto encontrado: ${nearest.name}${dist}`,
-        )
+        if (near) {
+          setStation(nearest.name) // provavelmente você está nele
+          setGeoMsg(
+            found.length > 1
+              ? `Posto mais próximo: ${nearest.name}${dist}. Toque em outro abaixo se não for esse.`
+              : `Posto encontrado: ${nearest.name}${dist}`,
+          )
+        } else {
+          // Mais próximo está longe — pode não ser o seu posto. Não preenche.
+          setGeoMsg(
+            `O posto mapeado mais perto está a ${Math.round(nearest.distance!)} m. ` +
+              `Toque no seu abaixo ou digite o nome.`,
+          )
+        }
         setGeoStatus('ok')
       } else if (lookupFailed) {
         // A consulta de postos caiu (rede/servidor) — não é ausência de postos.

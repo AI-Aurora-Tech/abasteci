@@ -234,7 +234,7 @@ export async function backendNearbyStations(
       distance: s.distance ?? haversine(coords, { lat: s.lat, lng: s.lng }),
     }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-    .slice(0, 3)
+    .slice(0, 5)
   return { stations: mapped, serverDiag: diag }
 }
 

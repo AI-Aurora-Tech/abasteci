@@ -40,34 +40,34 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const lat = Number(body.lat)
     const lng = Number(body.lng)
-    const radius = Number(body.radius) || 1500
+    const radius = Number(body.radius) || 2500
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    const diag: string[] = ['fn v4 (geoapify+paralelo)']
-    const key = Deno.env.get('FOURSQUARE_API_KEY')
+    const diag: string[] = ['fn v5 (geoapify primeiro)']
     const geoKey = Deno.env.get('GEOAPIFY_API_KEY')
 
-    let geo: Station[] = []
+    // 1) Geoapify primeiro — rápido e confiável. Se achar, retorna já (não
+    //    espera as outras fontes, que são lentas/instáveis).
+    if (geoKey) {
+      const t0 = Date.now()
+      try {
+        const geo = await withTimeout(geoapify(geoKey, lat, lng, radius, diag), 7000)
+        diag.push(`srv-geoapify: ${geo.length} em ${Date.now() - t0}ms`)
+        if (geo.length) return json({ stations: geo.slice(0, 5), source: 'geoapify', diag })
+      } catch (e) {
+        diag.push(`srv-geoapify: erro "${String(e)}" em ${Date.now() - t0}ms`)
+      }
+    } else {
+      diag.push('srv-geoapify: sem chave')
+    }
+
+    // 2) Fallback: Foursquare + Overpass em paralelo (só se o Geoapify falhar).
+    const key = Deno.env.get('FOURSQUARE_API_KEY')
     let fsq: Station[] = []
     let osm: Station[] = []
-
-    // Geoapify, Foursquare e Overpass EM PARALELO (cada um com tempo limitado).
     await Promise.all([
-      (async () => {
-        if (!geoKey) {
-          diag.push('srv-geoapify: sem chave')
-          return
-        }
-        const t0 = Date.now()
-        try {
-          geo = await withTimeout(geoapify(geoKey, lat, lng, radius, diag), 7000)
-          diag.push(`srv-geoapify: ${geo.length} em ${Date.now() - t0}ms`)
-        } catch (e) {
-          diag.push(`srv-geoapify: erro "${String(e)}" em ${Date.now() - t0}ms`)
-        }
-      })(),
       (async () => {
         if (!key) {
           diag.push('srv-fsq: sem chave')
@@ -92,11 +92,10 @@ Deno.serve(async (req) => {
       })(),
     ])
 
-    // Preferência: Geoapify > Foursquare > OpenStreetMap.
-    let stations = geo.length ? geo : fsq.length ? fsq : osm
-    const source = geo.length ? 'geoapify' : fsq.length ? 'foursquare' : osm.length ? 'osm' : null
+    let stations = fsq.length ? fsq : osm
+    const source = fsq.length ? 'foursquare' : osm.length ? 'osm' : null
     if (source === 'osm') await enrichNames(stations)
-    stations = stations.slice(0, 3)
+    stations = stations.slice(0, 5)
 
     return json({ stations, source, diag })
   } catch (err) {
@@ -124,7 +123,7 @@ async function geoapify(key: string, lat: number, lng: number, radius: number, d
     out.push({ name, lat: p.lat, lng: p.lon, distance: Math.round(haversine(lat, lng, p.lat, p.lon)) })
   }
   out.sort((a, b) => a.distance - b.distance)
-  return out.slice(0, 3)
+  return out.slice(0, 5)
 }
 
 // ---------- Foursquare ----------
