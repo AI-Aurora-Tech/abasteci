@@ -45,14 +45,29 @@ Deno.serve(async (req) => {
       return json({ stations: [], error: 'lat/lng inválidos' }, 400)
     }
 
-    const diag: string[] = ['fn v3 (paralelo)']
+    const diag: string[] = ['fn v4 (geoapify+paralelo)']
     const key = Deno.env.get('FOURSQUARE_API_KEY')
+    const geoKey = Deno.env.get('GEOAPIFY_API_KEY')
 
+    let geo: Station[] = []
     let fsq: Station[] = []
     let osm: Station[] = []
 
-    // Foursquare e Overpass EM PARALELO (cada um com tempo limitado).
+    // Geoapify, Foursquare e Overpass EM PARALELO (cada um com tempo limitado).
     await Promise.all([
+      (async () => {
+        if (!geoKey) {
+          diag.push('srv-geoapify: sem chave')
+          return
+        }
+        const t0 = Date.now()
+        try {
+          geo = await withTimeout(geoapify(geoKey, lat, lng, radius, diag), 7000)
+          diag.push(`srv-geoapify: ${geo.length} em ${Date.now() - t0}ms`)
+        } catch (e) {
+          diag.push(`srv-geoapify: erro "${String(e)}" em ${Date.now() - t0}ms`)
+        }
+      })(),
       (async () => {
         if (!key) {
           diag.push('srv-fsq: sem chave')
@@ -77,8 +92,9 @@ Deno.serve(async (req) => {
       })(),
     ])
 
-    let stations = fsq.length ? fsq : osm
-    const source = fsq.length ? 'foursquare' : osm.length ? 'osm' : null
+    // Preferência: Geoapify > Foursquare > OpenStreetMap.
+    let stations = geo.length ? geo : fsq.length ? fsq : osm
+    const source = geo.length ? 'geoapify' : fsq.length ? 'foursquare' : osm.length ? 'osm' : null
     if (source === 'osm') await enrichNames(stations)
     stations = stations.slice(0, 3)
 
@@ -88,6 +104,28 @@ Deno.serve(async (req) => {
     return json({ stations: [], error: String(err) })
   }
 })
+
+// ---------- Geoapify (grátis, sem cartão) ----------
+async function geoapify(key: string, lat: number, lng: number, radius: number, diag: string[]): Promise<Station[]> {
+  const url =
+    `https://api.geoapify.com/v2/places?categories=service.vehicle.fuel` +
+    `&filter=circle:${lng},${lat},${radius}&bias=proximity:${lng},${lat}&limit=10&apiKey=${key}`
+  const r = await fetchTimeout(url, { headers: { Accept: 'application/json' } }, 6000)
+  diag.push(`  · geoapify: HTTP ${r.status}`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  const data = (await r.json()) as {
+    features?: Array<{ properties?: { name?: string; address_line1?: string; lat?: number; lon?: number } }>
+  }
+  const out: Station[] = []
+  for (const f of data.features ?? []) {
+    const p = f.properties ?? {}
+    if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue
+    const name = (p.name || p.address_line1 || 'Posto de combustível').trim()
+    out.push({ name, lat: p.lat, lng: p.lon, distance: Math.round(haversine(lat, lng, p.lat, p.lon)) })
+  }
+  out.sort((a, b) => a.distance - b.distance)
+  return out.slice(0, 3)
+}
 
 // ---------- Foursquare ----------
 async function foursquare(key: string, lat: number, lng: number, radius: number, diag: string[]): Promise<Station[]> {
