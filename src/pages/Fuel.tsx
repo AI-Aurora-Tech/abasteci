@@ -168,7 +168,7 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
     setGeoMsg('Localizando postos próximos…')
     setGeoDiag([])
     try {
-      const { coords, stations: found, label, lookupFailed, diag } = await locateNearbyStations()
+      const { coords, stations: found, lookupFailed, diag } = await locateNearbyStations()
       setLatitude(coords.lat)
       setLongitude(coords.lng)
       setStations(found)
@@ -188,22 +188,17 @@ function FuelForm({ editing, onClose }: { editing: Fueling | null; onClose: () =
         } else {
           // Mais próximo está longe — pode não ser o seu posto. Não preenche.
           setGeoMsg(
-            `O posto mapeado mais perto está a ${Math.round(nearest.distance!)} m. ` +
+            `O posto mais perto está a ${Math.round(nearest.distance!)} m. ` +
               `Toque no seu abaixo ou digite o nome.`,
           )
         }
         setGeoStatus('ok')
       } else if (lookupFailed) {
         // A consulta de postos caiu (rede/servidor) — não é ausência de postos.
-        if (label) setStation(label)
         setGeoMsg('Não consegui buscar os postos agora. Toque em 📍 para tentar de novo.')
         setGeoStatus('error')
-      } else if (label) {
-        setStation(label)
-        setGeoMsg('Não achei postos num raio de 1 km — usei o endereço aproximado.')
-        setGeoStatus('ok')
       } else {
-        setGeoMsg('Localização registrada. Não achei o nome do posto — preencha manualmente.')
+        setGeoMsg('Nenhum posto encontrado por perto — digite o nome manualmente.')
         setGeoStatus('ok')
       }
     } catch (err) {
