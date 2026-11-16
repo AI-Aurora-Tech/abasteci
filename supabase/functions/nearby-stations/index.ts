@@ -74,7 +74,18 @@ async function google(key: string, lat: number, lng: number, radius: number): Pr
     },
     8000,
   )
-  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  if (!r.ok) {
+    // Google devolve o motivo no corpo (billing, API off, restrição de chave…).
+    const detail = await r.text().catch(() => '')
+    let msg = `HTTP ${r.status}`
+    try {
+      const j = JSON.parse(detail) as { error?: { message?: string; status?: string } }
+      if (j.error?.message) msg = `HTTP ${r.status}: ${j.error.status ?? ''} ${j.error.message}`.trim()
+    } catch {
+      if (detail) msg = `HTTP ${r.status}: ${detail.slice(0, 180)}`
+    }
+    throw new Error(msg)
+  }
   const data = (await r.json()) as {
     places?: Array<{ displayName?: { text?: string }; location?: { latitude?: number; longitude?: number } }>
   }
